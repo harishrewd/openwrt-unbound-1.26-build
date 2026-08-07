@@ -38,8 +38,8 @@ jobs:
             # 1. VERSION BUMP UPGRADE: Overwrite old 1.25.2 layout parameters with official stable 1.26.0 targets
             sed -i 's|PKG_VERSION:=1.25.2|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
             
-            # 2. FIXED OFFICIAL STABLE HASH INJECTION: Swaps checksum with official stable 1.26.0 source archive fingerprint to pass integrity scans
-            sed -i 's|PKG_HASH:=14db5a5286576b51fffd616e10757a3e742880bc8a9b9a6915152fe94943f663|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
+            # 2. FORCE HASH ALIGNMENT: Overwrites the old hash block completely to force match the downloaded stable 1.26.0 fingerprint
+            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
             # 3. Safely add CacheDB compilation flags directly to the core variable macro array block
             sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
@@ -55,10 +55,6 @@ jobs:
             
             # 7. Cleanly strip allsymbols so it stops breaking your multi-threaded speeds
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
-            
-            # 8. DIRECT MANUAL DOWNLOAD OVERRIDE: Manually pre-fetches the authentic source file to bypass OpenWrt's automated mirror checks
-            mkdir -p openwrt/dl
-            wget -O openwrt/dl/unbound-1.26.0.tar.gz https://nlnetlabs.nl/downloads/unbound/unbound-1.26.0.tar.gz
             
             grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH"
           else
@@ -112,6 +108,10 @@ jobs:
           
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
+          
+          # FIXED NATIVE DOWN_LOOP: Forces a direct checkout download signature match using openwrt internally
+          # This pulls down the correct file archive signature safely before the compiler runs
+          make package/feeds/packages/unbound/download
           
           # Compiled with the native check bypass flag exactly like your working reference model
           echo "🏗 Compiling custom Unbound suite..."
