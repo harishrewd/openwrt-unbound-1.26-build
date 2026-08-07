@@ -38,10 +38,10 @@ jobs:
             # 1. FORCE CLEAN DOWNLOAD PATHS: Completely wipes any leftover distribution archives inside the feed layout
             rm -rf openwrt/dl/unbound-*
             
-            # 2. VERSION BUMP UPGRADE: Overwrite old 1.25.2 layout parameters with official 1.26.0 targets
+            # 2. VERSION BUMP UPGRADE: Overwrite old 1.25.2 layout parameters with official stable 1.26.0 targets
             sed -i 's|PKG_VERSION:=1.25.2|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
             
-            # 3. FIXED STABLE HASH INJECTION: Swaps checksum with official stable 1.26.0 source archive fingerprint to pass integrity scans
+            # 3. FIXED OFFICIAL STABLE HASH INJECTION: Swaps checksum with official stable 1.26.0 source archive fingerprint to pass integrity scans
             sed -i 's|PKG_HASH:=14db5a5286576b51fffd616e10757a3e742880bc8a9b9a6915152fe94943f663|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
             # 4. Safely add CacheDB compilation flags directly to the core variable macro array block
