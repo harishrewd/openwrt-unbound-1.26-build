@@ -1,5 +1,5 @@
-# Version 1.26.0-Production-CacheDBLocked-RedisEnabled-r250 (Unified Certified Build)
-name: Build Custom Unbound 1.26.0 APK
+# Version 1.25.2-Production-CacheDBLocked-RedisEnabled-TrueHardware-r120
+name: Build True Custom Unbound 1.25.2 APK
 
 on:
   workflow_dispatch:
@@ -28,35 +28,29 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      - name: Hard-Coded Injection of CacheDB Option & Version Bump
+      - name: Hard-Coded Injection of CacheDB Option
         run: |
           MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
           
           if [ -f "$MAKEFILE_PATH" ]; then
             echo "⚙️ Tweaking specific package configuration parameter block..."
             
-            # 1. VERSION BUMP UPGRADE: Overwrite old 1.25.2 layout parameters with official stable 1.26.0 targets
-            sed -i 's|PKG_VERSION:=1.25.2|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
+            # 1. FORCE TRUE HARDWARE COMPILER PIPELINES DIRECTLY INTO SOURCE CONFIGURE SWITCHES
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
-            # 2. FORCE HASH ALIGNMENT: Overwrites the old hash block completely to force match the downloaded stable 1.26.0 fingerprint
-            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
+            # 2. Append cachedb cleanly into the compiled package modules listing variable
+            sed -i 's|subnetcache ipset respip validator iterator|cachedb subnetcache ipset respip validator iterator|g' "$MAKEFILE_PATH"
             
-            # 3. FORCE HARDWARE CRYPTO+CRC ACCELERATION SWITCH DIRECTLY INTO CONFIGURATION ARGS
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            # 3. DIRECT COPIED NAMING LOGIC: Replaces the release identifier string from 1 to 120 exactly like your working model did for 100
+            sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=120|g' "$MAKEFILE_PATH"
             
-            # 4. FIXED MODULE SEQUENCE: Aligns cachedb cleanly between validator and iterator so it parses without errors
-            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
-            
-            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration from 1 to 250 to break stale router file memory caches
-            sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=250|g' "$MAKEFILE_PATH"
-            
-            # 6. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
+            # 4. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
             
-            # 7. Cleanly strip allsymbols so it stops breaking your multi-threaded speeds
+            # 5. Cleanly strip allsymbols so it stops breaking your multi-threaded speeds
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
-            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH"
+            grep -E "PKG_RELEASE|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH"
           else
             echo "❌ Error: Makefile not found at $MAKEFILE_PATH!" && exit 1
           fi
@@ -69,9 +63,6 @@ jobs:
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
-          
-          # THE STABLE CONFIG MATCH: Injects optimization directly into OpenWrt's config mapping system safely
-          echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\"" >> .config
           
           # Enable dependencies and core packages to compile
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
@@ -96,21 +87,21 @@ jobs:
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
+          # NATIVE STAGING: Pre-compiles hiredis using your exact working libsodium path logic
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
-          make package/feeds/packages/unbound/download
           
-          echo "🏗 Compiling custom Unbound suite with safe architecture parameters..."
+          # Compiled with the native check bypass flag exactly like your working reference model
+          echo "🏗 Compiling custom Unbound suite..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
