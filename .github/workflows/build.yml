@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r600 (Certified Hardened O2 Build)
+# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r700 (Certified Hardened O2 Build)
 name: Build True ARMv8 Optimized Unbound 1.26.0 APK
 
 on:
@@ -41,26 +41,23 @@ jobs:
             # 2. FORCE HASH ALIGNMENT: Matches the downloaded official stable 1.26.0 fingerprint
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
-            # 3. FORCE HARDWARE CRYPTO+CRC ACCELERATION SWITCH DIRECTLY INTO CONFIGURATION ARGS
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            # 3. THE HARDWARE FIX: Forcefully pass the target options strictly into Unbound's native configure engine
+            # This completely isolates the optimizations away from OpenSSL and Libsodium, avoiding toolchain crashes
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-extra-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
             # 4. FIXED MODULE SEQUENCE: Aligns cachedb cleanly between validator and iterator so it parses without errors
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
-            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration to 600 to break stale router file memory caches
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
+            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration to 700 to break stale router file memory caches
+            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=700|g' "$MAKEFILE_PATH"
             
             # 6. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
             
             # 7. Cleanly strip allsymbols so it stops breaking your multi-threaded speeds
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
-
-            # 8. THE MASTER OVERRIDE OVER OPENWRT RULES: Intercepts the compiler flags inside the Makefile matrix itself
-            # Forcefully erases any incoming global flag overrides (-Os) and binds true O2 optimization to this specific package context
-            sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$MAKEFILE_PATH"
             
-            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS|TARGET_CFLAGS|EXTRA_CFLAGS" "$MAKEFILE_PATH"
+            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH"
           else
             echo "❌ Error: Makefile not found at $MAKEFILE_PATH!" && exit 1
           fi
@@ -74,7 +71,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Enable dependencies and core packages to compile
+          # Enable dependencies and core packages to compile cleanly
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
@@ -115,7 +112,7 @@ jobs:
           make package/feeds/packages/unbound/download
           
           # 4. EXECUTE COUPLING LAYER: Build custom optimized package stack
-          echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
+          echo "🏗 Compiling custom Unbound suite with isolated hardware configure parameters..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
