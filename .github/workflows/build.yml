@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-CacheDBLocked-RedisEnabled-r200 (Certified Production Build)
+# Version 1.26.0-Production-CacheDBLocked-RedisEnabled-r250 (Unified Certified Build)
 name: Build Custom Unbound 1.26.0 APK
 
 on:
@@ -42,13 +42,13 @@ jobs:
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
             # 3. FORCE HARDWARE CRYPTO+CRC ACCELERATION SWITCH DIRECTLY INTO CONFIGURATION ARGS
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
             # 4. FIXED MODULE SEQUENCE: Aligns cachedb cleanly between validator and iterator so it parses without errors
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
-            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration from 1 to 200 to break stale router file memory caches
-            sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=200|g' "$MAKEFILE_PATH"
+            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration from 1 to 250 to break stale router file memory caches
+            sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=250|g' "$MAKEFILE_PATH"
             
             # 6. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
@@ -69,6 +69,9 @@ jobs:
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
+          
+          # THE STABLE CONFIG MATCH: Injects optimization directly into OpenWrt's config mapping system safely
+          echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\"" >> .config
           
           # Enable dependencies and core packages to compile
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
@@ -94,28 +97,21 @@ jobs:
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # 1. Compile baseline tools and cross-compiler toolchain normally
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
-          # 2. Compile standard dependencies without overriding their internal hardware architectures
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
-          # 3. Clean and prepare Unbound workspace
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
           make package/feeds/packages/unbound/download
           
-          # 4. ISOLATED TARGET SWITCH: Enforce true hardware optimizations ONLY on the Unbound compiler execution sequence
-          echo "🏗 Compiling custom Unbound suite with isolated hardware crypto parameters..."
-          make package/feeds/packages/unbound/compile V=s \
-            EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \
-            TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \
-            -j$(nproc) IPKG_INSTANT_CHECK=0
+          echo "🏗 Compiling custom Unbound suite with safe architecture parameters..."
+          make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
