@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-CacheDBLocked-RedisEnabled-r120 (Certified Production Build)
+# Version 1.26.0-Production-CacheDBLocked-RedisEnabled-r200 (Certified Production Build)
 name: Build Custom Unbound 1.26.0 APK
 
 on:
@@ -41,14 +41,14 @@ jobs:
             # 2. FORCE HASH ALIGNMENT: Overwrites the old hash block completely to force match the downloaded stable 1.26.0 fingerprint
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
-            # 3. Safely add CacheDB compilation flags directly to the core variable macro array block
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            # 3. FORCE HARDWARE CRYPTO FLAGS: Injects the optimization strings directly into Unbound's inner configuration macro block
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
             # 4. Append cachedb cleanly into the compiled package modules listing variable
             sed -i 's|subnetcache ipset respip validator iterator|cachedb subnetcache ipset respip validator iterator|g' "$MAKEFILE_PATH"
             
-            # 5. DIRECT COPIED NAMING LOGIC: Replaces the release identifier string from 1 to 120 exactly like your working model did for 100
-            sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=120|g' "$MAKEFILE_PATH"
+            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration from 1 to 200 to break stale router file memory caches
+            sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=200|g' "$MAKEFILE_PATH"
             
             # 6. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
@@ -114,11 +114,11 @@ jobs:
           make toolchain/install -j$(nproc)
           
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
-          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/feeds/packages/libsodium/compile V=s -j$(nproc) EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crypto -mtune=cortex-a53" TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crypto -mtune=cortex-a53"
           
           # NATIVE STAGING: Pre-compiles hiredis using your exact working libsodium path logic
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
-          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          make package/feeds/packages/hiredis/compile V=s -j$(nproc) EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crypto -mtune=cortex-a53" TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crypto -mtune=cortex-a53"
           
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
