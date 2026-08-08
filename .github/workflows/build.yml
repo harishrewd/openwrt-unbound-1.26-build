@@ -41,8 +41,8 @@ jobs:
             # 2. FORCE HASH ALIGNMENT: Overwrites the old hash block completely to force match the downloaded stable 1.26.0 fingerprint
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
-            # 3. Safely add CacheDB compilation flags directly to the core variable macro array block
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            # 3. FORCE HARDWARE CRYPTO+CRC ACCELERATION SWITCH DIRECTLY INTO CONFIGURATION ARGS
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
             # 4. Append cachedb cleanly into the compiled package modules listing variable
             sed -i 's|subnetcache ipset respip validator iterator|cachedb subnetcache ipset respip validator iterator|g' "$MAKEFILE_PATH"
@@ -70,9 +70,6 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # FIXED TARGET COUPLING: Unlocks both CRC and Crypto acceleration rules precisely like your old working layout file did!
-          echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\"" >> .config
-          
           # Enable dependencies and core packages to compile
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
@@ -90,7 +87,6 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           
-          # FIXED SINGLE CALL: Runs defconfig only once here at the bottom so your optimizations never get wiped!
           make defconfig
 
       - name: Compile Toolchain and Dependencies
@@ -98,7 +94,6 @@ jobs:
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # Full toolchain generation loop from your working 9-package run
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
