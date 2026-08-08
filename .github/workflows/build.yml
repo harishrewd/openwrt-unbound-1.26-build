@@ -44,8 +44,8 @@ jobs:
             # 3. FORCE HARDWARE CRYPTO+CRC ACCELERATION SWITCH DIRECTLY INTO CONFIGURATION ARGS
             sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
-            # 4. Append cachedb cleanly into the compiled package modules listing variable
-            sed -i 's|subnetcache ipset respip validator iterator|cachedb subnetcache ipset respip validator iterator|g' "$MAKEFILE_PATH"
+            # 4. FIXED MODULE SEQUENCE: Aligns cachedb cleanly between validator and iterator so it parses without errors
+            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
             # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration from 1 to 200 to break stale router file memory caches
             sed -i 's|PKG_RELEASE:=1|PKG_RELEASE:=200|g' "$MAKEFILE_PATH"
@@ -94,22 +94,26 @@ jobs:
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
+          # GLOBAL FLAG INTERCEPTION: Inject optimizations into the actual environment variable fields to bypass default '-Os' overrides
+          export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
+          export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
+          
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
-          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/feeds/packages/libsodium/compile V=s EXTRA_CFLAGS="$EXTRA_CFLAGS" TARGET_CFLAGS="$TARGET_CFLAGS" -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
-          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          make package/feeds/packages/hiredis/compile V=s EXTRA_CFLAGS="$EXTRA_CFLAGS" TARGET_CFLAGS="$TARGET_CFLAGS" -j$(nproc)
           
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
           
           make package/feeds/packages/unbound/download
           
-          echo "🏗 Compiling custom Unbound suite..."
-          make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
+          echo "🏗 Compiling custom Unbound suite with forced hardware crypto parameters..."
+          make package/feeds/packages/unbound/compile V=s EXTRA_CFLAGS="$EXTRA_CFLAGS" TARGET_CFLAGS="$TARGET_CFLAGS" -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
