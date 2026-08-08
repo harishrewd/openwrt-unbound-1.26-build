@@ -94,26 +94,28 @@ jobs:
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # GLOBAL FLAG INTERCEPTION: Inject optimizations into the actual environment variable fields to bypass default '-Os' overrides
-          export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          
+          # 1. Compile baseline tools and cross-compiler toolchain normally
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
+          # 2. Compile standard dependencies without overriding their internal hardware architectures
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
-          make package/feeds/packages/libsodium/compile V=s EXTRA_CFLAGS="$EXTRA_CFLAGS" TARGET_CFLAGS="$TARGET_CFLAGS" -j$(nproc)
+          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
-          make package/feeds/packages/hiredis/compile V=s EXTRA_CFLAGS="$EXTRA_CFLAGS" TARGET_CFLAGS="$TARGET_CFLAGS" -j$(nproc)
+          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
+          # 3. Clean and prepare Unbound workspace
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
-          
           make package/feeds/packages/unbound/download
           
-          echo "🏗 Compiling custom Unbound suite with forced hardware crypto parameters..."
-          make package/feeds/packages/unbound/compile V=s EXTRA_CFLAGS="$EXTRA_CFLAGS" TARGET_CFLAGS="$TARGET_CFLAGS" -j$(nproc) IPKG_INSTANT_CHECK=0
+          # 4. ISOLATED TARGET SWITCH: Enforce true hardware optimizations ONLY on the Unbound compiler execution sequence
+          echo "🏗 Compiling custom Unbound suite with isolated hardware crypto parameters..."
+          make package/feeds/packages/unbound/compile V=s \
+            EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \
+            TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \
+            -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
