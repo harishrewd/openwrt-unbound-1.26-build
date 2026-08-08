@@ -79,7 +79,7 @@ jobs:
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-control=y" >> "CONFIG_PACKAGE_unbound-control=y" >> .config
+          echo "CONFIG_PACKAGE_unbound-control=y" >> .config
           echo "CONFIG_PACKAGE_unbound-checkconf=y" >> .config
           echo "CONFIG_PACKAGE_unbound-anchor=y" >> .config
           echo "CONFIG_PACKAGE_unbound-host=y" >> .config
