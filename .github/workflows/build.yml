@@ -31,9 +31,6 @@ jobs:
         run: |
           MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
           
-          # Find the exact dynamic location of OpenSSL's core Makefile to avoid path breaking
-          OPENSSL_PATH=$(find openwrt/package/ -name Makefile | grep "openssl/Makefile" | head -n 1)
-          
           if [ -f "$MAKEFILE_PATH" ]; then
             echo "⚙️ Tweaking specific package configuration parameter block..."
             
@@ -47,24 +44,15 @@ jobs:
             # 3. CACHE CONTROL RELEASE BUMP (Set to 300)
             sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=300|g' "$MAKEFILE_PATH"
             
-            # 4. FIXED DEPENDENCY INJECTION
-            sed -i '/define Package\/unbound-daemon/a \  DEPENDS+= +libhiredis +libsodium +libevent2' "$MAKEFILE_PATH"
-            
-            # 5. CLEAN UP SPEED LIMITING OVERRIDES
+            # 4. CLEAN UP SPEED LIMITING OVERRIDES
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
-            # 6. FIXED CONFIGURE ARGS APPEND
+            # 5. FIXED CONFIGURE ARGS APPEND
+            # Safely passes your optimized flags straight to Unbound's Autotools engine layer
             sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr --with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"|g' "$MAKEFILE_PATH"
             
-            # 7. FORCE OPENSSL HARDWARE ENGINES NATIVELY
-            if [ -n "$OPENSSL_PATH" ] && [ -f "$OPENSSL_PATH" ]; then
-              echo "⚙️ Intercepting core OpenSSL configuration at: $OPENSSL_PATH"
-              sed -i 's|OPENSSL_OPTIONS += no-asm|OPENSSL_OPTIONS += enable-asm|g' "$OPENSSL_PATH" || true
-              sed -i 's|OPENSSL_OPTIONS+=no-asm|OPENSSL_OPTIONS+=enable-asm|g' "$OPENSSL_PATH" || true
-            fi
-            
             echo "📊 Verifying Patch Integrity..."
-            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH" || true
+            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb" "$MAKEFILE_PATH" || true
           else
             echo "❌ Error: Makefile not found at $MAKEFILE_PATH!" && exit 1
           fi
@@ -73,16 +61,23 @@ jobs:
         run: |
           cd openwrt
           
-          # Target Profile Specification for D-Link M30 (MediaTek Filogic MT7981)
+          # Target Profile Specification for D-Link M30 (MediaTek Filogic MT7981 / ARMv8)
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # HARDWARE CRYPTO ENGINE OVERRIDE CONFIGURATION BLOCK
-          echo "CONFIG_PACKAGE_libopenssl-armv8-asm=y" >> .config
+          # FORUM VALIDATED HARDWARE CRYPTO ENGINE OVERRIDE DEFINITIONS
+          # Forces the cross-compiler to build native ARMv8 crypto instructions into libcrypto.so
           echo "CONFIG_OPENSSL_WITH_ASM=y" >> .config
+          echo "CONFIG_OPENSSL_WITH_ARMV8_ASM=y" >> .config
+          echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           
-          # Enable dependencies and core packages to compile
+          # GLOBAL ENVIRONMENT FLAG FORCE OVERRIDE
+          # This instructs the compiler to strip standard generic target limits (-Os) globally 
+          # and use your high-performance hardware crypto instruction sets across the build tree
+          echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\"" >> .config
+          
+          # Enable dependencies and core packages to compile safely via target matrix rules
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
           echo "CONFIG_PACKAGE_libevent2=y" >> .config
@@ -111,7 +106,7 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
-          # 2. Compile standard dependencies normally using shortcut compilation targets
+          # 2. Compile standard dependencies normally using OpenWrt shortname target targets
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
           make package/libsodium/compile V=s -j$(nproc)
           
@@ -121,7 +116,7 @@ jobs:
           echo "📦 Pre-compiling Libevent toolchain requirements..."
           make package/libevent2/compile V=s -j$(nproc)
 
-          echo "📦 Pre-compiling Accelerated OpenSSL toolchain requirements..."
+          echo "📦 Pre-compiling Hardware-Accelerated OpenSSL toolchain requirements..."
           make package/openssl/compile V=s -j$(nproc)
 
       - name: Hardened Unbound High-Performance Native Compilation Step
@@ -129,7 +124,7 @@ jobs:
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          echo "🧹 Performing clean build sweep on Unbound..."
+          # Force clean workspace sweep to guarantee fresh binary flag embedding
           make package/unbound/clean
           make package/unbound/download
           
@@ -149,7 +144,7 @@ jobs:
           fi
 
       - name: Upload All Finished APK Files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact=v4
         with:
           name: dlink-m30-unbound-dnscrypt-complete-apk
           path: openwrt/bin/**/*.apk
