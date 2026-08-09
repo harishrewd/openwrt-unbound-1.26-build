@@ -1,5 +1,5 @@
-# Version 1.26.0-Production-UniversalMatrixRescue-r600 (Certified Complete 11-File Stack)
-name: Build Complete Full ARMv8 Optimized Unbound Matrix
+# Version 1.26.0-Production-MissingMatrixRescue-r600 (Certified Complete Missing Stack)
+name: Build Missing Targeted ARMv8 Supporting Libraries
 
 on:
   workflow_dispatch:
@@ -24,30 +24,15 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
-          ./scripts/feeds install libsodium hiredis
-          ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
+          ./scripts/feeds install hiredis
+          ./scripts/feeds install libunbound
 
-      - name: Hard-Coded Injection of True ARMv8 Flags into Unbound Suite Master Engine
+      - name: Inject True ARMv8 Flags into Unbound & libunbound Makefile
         run: |
           MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
           if [ -f "$MAKEFILE_PATH" ]; then
-            echo "⚙️ Tweaking specific package configuration parameter block..."
-            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
-            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
-            
-            # Injection switch block mapping parameters to handle ALL custom internal utilities
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
-            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
-            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
-            sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
-            
-            # 🔥 THE CRITICAL FIX: Forces the compiler rules layout to overwrite ALL utilities, sub-tools, and binaries inside Unbound!
-            sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nTARGET_LDFLAGS:=\$(TARGET_LDFLAGS) -Wl,--gc-sections' "$MAKEFILE_PATH"
-            
-            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS|TARGET_CFLAGS|EXTRA_CFLAGS" "$MAKEFILE_PATH"
-          else
-            echo "❌ Error: Unbound Makefile not found!" && exit 1
+            echo "⚙️ Tweaking Unbound/libunbound build parameters..."
+            sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$MAKEFILE_PATH"
           fi
 
       - name: Configure M30 Target Architecture & Build System Matrix
@@ -57,29 +42,16 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force the master global compiler optimization sweep (strips -Os constraints across background libraries)
+          # Force global flag override loop (catches background utilities)
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          echo "CONFIG_PACKAGE_libopenssl=y" >> .config
-          echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
-          echo "CONFIG_PACKAGE_openssl-util=y" >> .config
-          echo "CONFIG_PACKAGE_libsodium=y" >> .config
+          echo "CONFIG_PACKAGE_libevent=y" >> .config
+          echo "CONFIG_PACKAGE_libexpat=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-control=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-checkconf=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-anchor=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-host=y" >> .config
-          
-          echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Compile Toolchain and Universal Hardware Matrix
+      - name: Compile Host Tools and Targeted Missing Libraries
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
@@ -87,55 +59,43 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
-          # 1. INJECT HARDWARE FLAGS AND COMPILE TARGET SYSTEMS CORE OPENSSL
-          echo "⚙️ Injecting ARMv8 Crypto Engine switches into OpenSSL..."
-          OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
-          if [ -f "$OPENSSL_MAKEFILE" ]; then
-            sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$OPENSSL_MAKEFILE"
-            sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
-            make package/libs/openssl/compile V=s -j$(nproc)
-          fi
-          
-          # 2. INJECT HARDWARE FLAGS AND COMPILE SYSTEM CORE LIBEVENT
-          echo "⚙️ Injecting ARMv8 flags into libevent..."
+          # 1. INJECT HARDWARE FLAGS AND COMPILE SYSTEM CORE LIBEVENT
           LIBEVENT_MAKEFILE="package/libs/libevent/Makefile"
           if [ -f "$LIBEVENT_MAKEFILE" ]; then
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$LIBEVENT_MAKEFILE"
             make package/libs/libevent/compile V=s -j$(nproc)
           fi
 
-          # 3. INJECT HARDWARE FLAGS AND COMPILE SYSTEM CORE LIBEXPAT
-          echo "⚙️ Injecting ARMv8 flags into libexpat..."
+          # 2. INJECT HARDWARE FLAGS AND COMPILE SYSTEM CORE LIBEXPAT
           LIBEXPAT_MAKEFILE="package/libs/expat/Makefile"
           if [ -f "$LIBEXPAT_MAKEFILE" ]; then
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$LIBEXPAT_MAKEFILE"
             make package/libs/expat/compile V=s -j$(nproc)
           fi
 
-          # 4. COMPILE LIBSODIUM & HIREDIS (Inherits global optimization flags)
-          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          # 3. COMPILE APP-FEED HIREDIS (Inherits global optimization variable arrays)
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
-          # 5. COMPILE ALL COMPLETE UNBOUND PACKAGES AT ONCE
+          # 4. COMPILE APP-FEED LIBUNBOUND TARGET
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
-      # 🔥 THE ALL-INCLUSIVE WILDCARD RESCUE LOOP: Captures absolutely every single optimized library and tool binary completely!
-      - name: Rescue All Hardware-Accelerated Matrix Packages via Wildcard
+      # 🔥 YOUR PROVEN WILDCARD RESCUE SWITCH: Pulls out the un-deleted packages right from internal registers!
+      - name: Rescue Hardware-Accelerated Core Matrix Packages via Wildcard
         run: |
-          echo "🚀 Running universal wildcard finder sweep across compilation workspace tracks..."
+          echo "🚀 Gathering optimized target APK files from internal registers..."
           TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
           mkdir -p "$TARGET_BIN_DIR"
           
           find openwrt/build_dir/target-aarch64_cortex-a53_musl/ -type d -name "ipkg-*" | while read -r IPKG_ROOT; do
-             if [ -d "$IPKG_ROOT/libopenssl" ] || [ -d "$IPKG_ROOT/openssl-util" ] || [ -d "$IPKG_ROOT/libevent" ] || [ -d "$IPKG_ROOT/libexpat" ] || [ -d "$IPKG_ROOT/unbound-daemon" ] || [ -d "$IPKG_ROOT/unbound-control" ] || [ -d "$IPKG_ROOT/unbound-checkconf" ] || [ -d "$IPKG_ROOT/unbound-anchor" ] || [ -d "$IPKG_ROOT/unbound-host" ]; then
-                echo "Securing critical hardware package matching layer: $IPKG_ROOT"
-                find "$IPKG_ROOT" -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \;
-             fi
+            if [ -d "$IPKG_ROOT/libevent" ] || [ -d "$IPKG_ROOT/libexpat" ] || [ -d "$IPKG_ROOT/libhiredis" ] || [ -d "$IPKG_ROOT/libunbound" ]; then
+               echo "Securing package workspace match inside: $IPKG_ROOT"
+               find "$IPKG_ROOT" -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \;
+            fi
           done
-          echo "✔ Complete structural matrix rescue completed successfully!"
+          echo "✔ Missing library rescue execution complete."
 
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-universal-hardware-matrix-apks
+          name: dlink-m30-missing-hardware-matrix-apks
           path: openwrt/bin/**/*.apk
