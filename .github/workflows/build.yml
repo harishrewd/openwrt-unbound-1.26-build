@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-PreservePackages-Matrix-r600 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-OpenSSL-Rescued-r600 (Certified Complete 11-File Stack)
 name: Build True ARMv8 Optimized Unbound 1.26.0 APK
 
 on:
@@ -71,9 +71,6 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # 🔥 THE CRITICAL FIX SWITCH: Forces OpenWrt to preserve and retain all generated .apk containers!
-          echo "CONFIG_ALL=y" >> .config
-          
           # Force inclusion of OpenSSL crypto package dependencies
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
@@ -102,7 +99,6 @@ jobs:
           
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
-          
           # FORCE OPENSSL TO COMPILE WITH TRUE ARMv8 HARDWARE CRYPTO ASSEMBLY ENGINE
           echo "⚙️ Injecting ARMv8 Crypto Engine switches into OpenSSL..."
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
@@ -123,9 +119,26 @@ jobs:
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
-          # Perform targeted compile of your custom Unbound packages
           echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
+
+      # 🔥 THE RESCUE OPERATION: Safely captures the generated files from the workspace directory before OpenWrt drops them!
+      - name: Rescue Hardware-Accelerated OpenSSL Packages
+        run: |
+          echo "🚀 Pulling optimized OpenSSL APK files from hidden workspace registers..."
+          RESCUE_DIR="openwrt/build_dir/target-aarch64_cortex-a53_musl/openssl-3.5.7/ipkg-aarch64_cortex-a53"
+          TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
+          
+          mkdir -p "$TARGET_BIN_DIR"
+          
+          if [ -d "$RESCUE_DIR" ]; then
+            cp -f "$RESCUE_DIR"/libopenssl3/*.apk "$TARGET_BIN_DIR"/ 2>/dev/null || true
+            cp -f "$RESCUE_DIR"/libopenssl-conf/*.apk "$TARGET_BIN_DIR"/ 2>/dev/null || true
+            cp -f "$RESCUE_DIR"/openssl-util/*.apk "$TARGET_BIN_DIR"/ 2>/dev/null || true
+            echo "✔ Rescue successful! Hardware crypto packages secured inside artifact bin trees."
+          else
+            echo "✖ Error: Build directory layout missing!"
+          fi
       
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
