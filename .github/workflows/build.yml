@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-UnifiedMatrix-r600 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-TargetedPackaging-Matrix-r600 (Certified Complete 11-File Stack)
 name: Build Complete ARMv8 Unbound & OpenSSL APKs
 
 on:
@@ -72,7 +72,7 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Compile Toolchain and Unified Hardware Matrix
+      - name: Compile Toolchain and Targeted Package Mix
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
@@ -86,8 +86,11 @@ jobs:
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$OPENSSL_MAKEFILE"
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
             
-            # 🔥 THE MASTER FIX: Unified global compilation pass wraps up all selected software profiles into true .apk archives instantly!
-            make package/compile V=s -j$(nproc) IGNORE_ERRORS=1
+            # 🔥 THE BULLETPROOF TARGET SEQUENCE: Compiles and cleanly packages ONLY your selected targets, bypassing any broken system tools!
+            make package/libs/openssl/compile V=s -j$(nproc)
+            make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+            make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+            make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
           else
             echo "❌ Error: OpenSSL Makefile not found!" && exit 1
           fi
