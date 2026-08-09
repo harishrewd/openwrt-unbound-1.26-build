@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-TargetedPackaging-Matrix-r600 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-CleanMatrix-r600 (Certified Complete 11-File Stack)
 name: Build Complete ARMv8 Unbound & OpenSSL APKs
 
 on:
@@ -72,7 +72,7 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Compile Toolchain and Targeted Package Mix
+      - name: Compile Toolchain and Targeted Clean Build Pass
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
@@ -86,7 +86,15 @@ jobs:
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$OPENSSL_MAKEFILE"
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
             
-            # 🔥 THE BULLETPROOF TARGET SEQUENCE: Compiles and cleanly packages ONLY your selected targets, bypassing any broken system tools!
+            # 🔥 THE CRITICAL FIX: Clean out all targeted workspace hooks before running compilation loops
+            echo "🧹 Swapping staging directories to clear residual artifact locks..."
+            make package/libs/openssl/clean
+            make package/feeds/packages/libsodium/clean
+            make package/feeds/packages/hiredis/clean
+            make package/feeds/packages/unbound/clean
+            
+            # Execute your dedicated hardware compilation sequence smoothly
+            echo "🏗 Compiling fresh optimized software matrix dependencies..."
             make package/libs/openssl/compile V=s -j$(nproc)
             make package/feeds/packages/libsodium/compile V=s -j$(nproc)
             make package/feeds/packages/hiredis/compile V=s -j$(nproc)
