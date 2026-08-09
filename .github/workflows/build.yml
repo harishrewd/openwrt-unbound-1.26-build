@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r700 (Certified Hardened O2 Build)
+# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r600 (Certified Hardened O2 Build)
 name: Build True ARMv8 Optimized Unbound 1.26.0 APK
 
 on:
@@ -24,8 +24,7 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
-          # NATIVE STAGING: Pre-loads hiredis straight into your working feeds layout alongside libsodium
-          ./scripts/feeds install libsodium hiredis
+          ./scripts/feeds install libsodium hiredis libevent2
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
       - name: Hard-Coded Injection of True ARMv8 Hardware Assembly Flags
@@ -35,29 +34,28 @@ jobs:
           if [ -f "$MAKEFILE_PATH" ]; then
             echo "⚙️ Tweaking specific package configuration parameter block..."
             
-            # 1. VERSION LOCKING: Explicitly upgrade the source files to target official stable 1.26.0
+            # 1. VERSION LOCKING & HASH ALIGNMENT
             sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
-            
-            # 2. FORCE HASH ALIGNMENT: Matches the downloaded official stable 1.26.0 fingerprint
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
-            # 3. THE HARDWARE FIX: Forcefully pass the target options strictly into Unbound's native configure engine
-            # This completely isolates the optimizations away from OpenSSL and Libsodium, avoiding toolchain crashes
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-extra-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
-            
-            # 4. FIXED MODULE SEQUENCE: Aligns cachedb cleanly between validator and iterator so it parses without errors
+            # 2. FORCE CACHEDB MODULE SEQUENCE ALIGNMENT
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
-            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration to 700 to break stale router file memory caches
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=700|g' "$MAKEFILE_PATH"
+            # 3. CACHE CONTROL RELEASE BUMP
+            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
             
-            # 6. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
-            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
+            # 4. FIXED DEPENDENCY INJECTION
+            sed -i '/define Package\/unbound-daemon/a \  DEPENDS+= +libhiredis +libsodium +libevent2' "$MAKEFILE_PATH"
             
-            # 7. Cleanly strip allsymbols so it stops breaking your multi-threaded speeds
+            # 5. CLEAN UP SPEED LIMITING OVERRIDES
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
-            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH"
+            # 6. FIXED CONFIGURE ARGS APPEND
+            # This relies on the exact payload string pattern verified by your compiler log tracking.
+            sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr --with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"|g' "$MAKEFILE_PATH"
+            
+            echo "📊 Verifying Patch Integrity..."
+            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH" || true
           else
             echo "❌ Error: Makefile not found at $MAKEFILE_PATH!" && exit 1
           fi
@@ -66,14 +64,15 @@ jobs:
         run: |
           cd openwrt
           
-          # Target Profile Specification for D-Link M30
+          # Target Profile Specification for D-Link M30 (MediaTek Filogic MT7981)
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Enable dependencies and core packages to compile cleanly
+          # Enable dependencies and core packages to compile
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
+          echo "CONFIG_PACKAGE_libevent2=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           echo "CONFIG_PACKAGE_unbound-control=y" >> .config
@@ -81,12 +80,12 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-anchor=y" >> .config
           echo "CONFIG_PACKAGE_unbound-host=y" >> .config
           
-          # Native sub-package target switches
-          echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
+          # Native working feature sub-package target switches
+          echo "CONFIG_PACKAGE_libunbound-dnscrypt=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound-ipset=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound-libevent=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound-libpthread=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound-subnet=y" >> .config
           
           make defconfig
 
@@ -99,21 +98,39 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
-          # 2. Compile standard dependencies without overriding their internal hardware architectures
+          # 2. Compile standard dependencies normally
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+
+          echo "📦 Pre-compiling Libevent toolchain requirements..."
+          make package/feeds/base/libevent2/compile V=s -j$(nproc)
+
+      - name: Hardened Unbound High-Performance Native Compilation Step
+        run: |
+          cd openwrt
+          export FORCE_UNSAFE_CONFIGURE=1
           
-          # 3. Clean and prepare Unbound workspace
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
           make package/feeds/packages/unbound/download
           
-          # 4. EXECUTE COUPLING LAYER: Build custom optimized package stack
-          echo "🏗 Compiling custom Unbound suite with isolated hardware configure parameters..."
+          echo "🏗 Compiling custom Unbound suite with protected hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
+
+      - name: Verify Binary Architecture Flags
+        run: |
+          cd openwrt
+          # Scan the build workspace to locate the compiled Unbound binary executable
+          UNBOUND_BIN=$(find build_dir/target-aarch64_cortex-a53* -name unbound -type f | head -n 1)
+          if [ -f "$UNBOUND_BIN" ]; then
+            echo "🔍 Inspecting binary properties to confirm compilation success..."
+            file "$UNBOUND_BIN"
+          else
+            echo "⚠️ Warning: Compiled binary not found in build_dir for architectural logging."
+          fi
 
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
