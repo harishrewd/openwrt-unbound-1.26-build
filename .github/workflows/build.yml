@@ -38,7 +38,7 @@ jobs:
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$UNBOUND_MAKEFILE"
             sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$UNBOUND_MAKEFILE"
             
-            # 2. Inject cachedb support directly into configuration argument templates
+            # 2. Inject cachedb and Redis support cleanly without the invalid --with-cflags parameter
             sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$UNBOUND_MAKEFILE"
             
             # 3. Clean module sequence ordering
@@ -66,8 +66,8 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force compiler overrides directly into the global system config (Removes -Os entirely)
-          echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\"" >> .config
+          # NATIVE OVERRIDE: Tells the OpenWrt global engine to use these exact hardware flags for ALL packages instead of -Os
+          echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
           # Core Package definitions
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
