@@ -1,5 +1,5 @@
-# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r600 (Certified Hardened O2 Build)
-name: Build True ARMv8 Optimized Unbound 1.26.0 APK
+# Version 1.26.0-Production-FullHardwareCryptoMatrix-r600 (Certified Complete 11-File Stack)
+name: Build Complete ARMv8 Unbound & OpenSSL APKs
 
 on:
   workflow_dispatch:
@@ -27,49 +27,33 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      - name: Inject Target Package Specific Configuration Patches
+      - name: Hard-Coded Injection of True ARMv8 Hardware Assembly Flags into Unbound
         run: |
-          UNBOUND_MAKEFILE="openwrt/feeds/packages/net/unbound/Makefile"
-          
-          if [ -f "$UNBOUND_MAKEFILE" ]; then
-            echo "⚙️ Injecting module structure parameters cleanly..."
-            # 1. Force the Unbound target version parameters to clean 1.26.0
-            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$UNBOUND_MAKEFILE"
-            
-            # 2. Inject cachedb and Redis support cleanly without the invalid --with-cflags parameter
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$UNBOUND_MAKEFILE"
-            
-            # 3. Clean module sequence ordering
-            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$UNBOUND_MAKEFILE"
-            
-            # 4. Safe APK dependency injection 
-            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|--enable-allsymbols||g' "$UNBOUND_MAKEFILE"
+          MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
+          if [ -f "$MAKEFILE_PATH" ]; then
+            echo "⚙️ Tweaking specific package configuration parameter block..."
+            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
+            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
+            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
+            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
+            sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
+            sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$MAKEFILE_PATH"
           else
             echo "❌ Error: Unbound Makefile not found!" && exit 1
-          fi
-
-          # 5. Point OpenSSL cleanly to the 64-bit ARM assembly backend engines
-          OPENSSL_MAKEFILE="openwrt/package/libs/openssl/Makefile"
-          if [ -f "$OPENSSL_MAKEFILE" ]; then
-            sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
           fi
 
       - name: Configure M30 Target Architecture & Build System Matrix
         run: |
           cd openwrt
-          
-          # Force M30 target variables
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # NATIVE OVERRIDE: Tells the OpenWrt global engine to use these exact hardware flags for ALL packages instead of -Os
+          # Force the global compiler optimization sweep (completely strips -Os size restrictions)
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          # Core Package definitions
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
@@ -81,38 +65,49 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-anchor=y" >> .config
           echo "CONFIG_PACKAGE_unbound-host=y" >> .config
           
-          # Extensions mapping
           echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
-          
           make defconfig
 
-      - name: Compile Toolchain and Dependencies
+      - name: Compile Toolchain and Full Hardware Matrix
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # Compile baseline cross-compilers normally
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
-
-          echo "🏗 Compiling hardware-accelerated OpenSSL core..."
-          make package/libs/openssl/compile V=s -j$(nproc)
+          
+          echo "⚙️ Injecting ARMv8 Crypto Engine switches into OpenSSL..."
+          OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
+          if [ -f "$OPENSSL_MAKEFILE" ]; then
+            sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$OPENSSL_MAKEFILE"
+            sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
+            
+            echo "🏗 Compiling hardware-accelerated OpenSSL core..."
+            make package/libs/openssl/compile V=s -j$(nproc)
+            
+            # 🔥 THE CRITICAL FORCED PACKAGING SWITCH FOR OPENSSL
+            make package/libs/openssl/package V=s -j$(nproc)
+          else
+            echo "❌ Error: OpenSSL Makefile not found!" && exit 1
+          fi
           
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/feeds/packages/libsodium/package V=s -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          make package/feeds/packages/hiredis/package V=s -j$(nproc)
           
-          echo "🧹 Cleaning Unbound directory hooks..."
+          echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
           make package/feeds/packages/unbound/download
           
-          echo "🏗 Compiling custom Unbound suite with target optimization arrays..."
+          echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
