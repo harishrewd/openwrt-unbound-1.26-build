@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-OpenSSL-Forced-r600 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-PreservePackages-Matrix-r600 (Certified Complete 11-File Stack)
 name: Build True ARMv8 Optimized Unbound 1.26.0 APK
 
 on:
@@ -68,6 +68,9 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
+          # 🔥 THE MASTER INSTRUCTION SWITCH: Disables the automatic package removal cleanup loops completely!
+          echo "CONFIG_ALL=y" >> .config
+          
           # Force inclusion of OpenSSL crypto package dependencies
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
@@ -105,10 +108,6 @@ jobs:
             
             echo "🏗 Compiling hardware-accelerated OpenSSL core..."
             make package/libs/openssl/compile V=s -j$(nproc)
-            
-            # 🔥 THE ONLY EXTRA LINES WE NEEDED: Force the generator tool to output libopenssl3 and openssl-util .apk files!
-            echo "📦 Packaging hardware-accelerated OpenSSL modules..."
-            make package/libs/openssl/package V=s -j$(nproc)
           else
             echo "❌ Error: OpenSSL Makefile not found at $OPENSSL_MAKEFILE!" && exit 1
           fi
