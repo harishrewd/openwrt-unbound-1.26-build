@@ -42,8 +42,10 @@ jobs:
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
-            # Master override switch to explicitly capture and compile ALL companion sub-tools
+            # 🔥 THE CRITICAL FIX: Forces the compiler rules layout to overwrite ALL utilities, sub-tools, and binaries inside Unbound!
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nTARGET_LDFLAGS:=\$(TARGET_LDFLAGS) -Wl,--gc-sections' "$MAKEFILE_PATH"
+            
+            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS|TARGET_CFLAGS|EXTRA_CFLAGS" "$MAKEFILE_PATH"
           else
             echo "❌ Error: Unbound Makefile not found!" && exit 1
           fi
@@ -55,7 +57,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force the global compiler optimization sweep (strips -Os constraints globally across background libraries)
+          # Force the master global compiler optimization sweep (strips -Os constraints across background libraries)
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
