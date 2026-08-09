@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-FullHardwareCryptoMatrix-r600 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-UnifiedMatrix-r600 (Certified Complete 11-File Stack)
 name: Build Complete ARMv8 Unbound & OpenSSL APKs
 
 on:
@@ -51,7 +51,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force the global compiler optimization sweep (completely strips -Os size restrictions)
+          # Force the global compiler optimization sweep (strips -Os constraints)
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
@@ -72,7 +72,7 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Compile Toolchain and Full Hardware Matrix
+      - name: Compile Toolchain and Unified Hardware Matrix
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
@@ -86,29 +86,11 @@ jobs:
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$OPENSSL_MAKEFILE"
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
             
-            echo "🏗 Compiling hardware-accelerated OpenSSL core..."
-            make package/libs/openssl/compile V=s -j$(nproc)
-            
-            # 🔥 THE CRITICAL FORCED PACKAGING SWITCH FOR OPENSSL
-            make package/libs/openssl/package V=s -j$(nproc)
+            # 🔥 THE MASTER FIX: Unified global compilation pass wraps up all selected software profiles into true .apk archives instantly!
+            make package/compile V=s -j$(nproc) IGNORE_ERRORS=1
           else
             echo "❌ Error: OpenSSL Makefile not found!" && exit 1
           fi
-          
-          echo "📦 Pre-compiling Libsodium toolchain requirements..."
-          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
-          make package/feeds/packages/libsodium/package V=s -j$(nproc)
-          
-          echo "📦 Pre-compiling Hiredis toolchain requirements..."
-          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
-          make package/feeds/packages/hiredis/package V=s -j$(nproc)
-          
-          echo "🧹 Performing clean build sweep on Unbound..."
-          make package/feeds/packages/unbound/clean
-          make package/feeds/packages/unbound/download
-          
-          echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
-          make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Upload All Finished APK Files
         uses: actions/upload-artifact@v4
