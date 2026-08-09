@@ -24,7 +24,6 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
-          # NATIVE STAGING: Pre-loads hiredis straight into your working feeds layout alongside libsodium
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
@@ -35,29 +34,28 @@ jobs:
           if [ -f "$MAKEFILE_PATH" ]; then
             echo "⚙️ Tweaking specific package configuration parameter block..."
             
-            # 1. VERSION LOCKING: Explicitly upgrade the source files to target official stable 1.26.0
+            # 1. VERSION LOCKING
             sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
             
-            # 2. FORCE HASH ALIGNMENT: Matches the downloaded official stable 1.26.0 fingerprint
+            # 2. FORCE HASH ALIGNMENT
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
             
-            # 3. FORCE HARDWARE CRYPTO+CRC ACCELERATION SWITCH DIRECTLY INTO CONFIGURATION ARGS
-            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=\$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            # 3. SAFE HARDWARE CRYPTO INJECTION (Cleanly preserves Makefile variables)
+            sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
-            # 4. FIXED MODULE SEQUENCE: Aligns cachedb cleanly between validator and iterator so it parses without errors
+            # 4. FIXED MODULE SEQUENCE
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
-            # 5. CACHE CONTROL RELEASE BUMP: Replaces release tracking iteration to 600 to break stale router file memory caches
+            # 5. CACHE CONTROL RELEASE BUMP
             sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
             
-            # 6. FIXED DEPENDENCY INJECTION: Safely appends the runtime dependency using OpenWrt's default block hook to pass APK validation
+            # 6. FIXED DEPENDENCY INJECTION
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
             
-            # 7. Cleanly strip allsymbols so it stops breaking your multi-threaded speeds
+            # 7. STRIP ALLSYMBOLS
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
-            # 8. THE MASTER OVERRIDE OVER OPENWRT RULES: Intercepts the compiler flags inside the Unbound Makefile matrix itself
-            # Forcefully erases any incoming global flag overrides (-Os) and binds true O2 optimization to this specific package context
+            # 8. MASTER RULE OVERRIDE: Destroys size optimizations (-Os) for true execution speed
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$MAKEFILE_PATH"
             
             grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS|TARGET_CFLAGS|EXTRA_CFLAGS" "$MAKEFILE_PATH"
@@ -69,16 +67,14 @@ jobs:
         run: |
           cd openwrt
           
-          # Target Profile Specification for D-Link M30
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force inclusion of underlying OpenSSL crypto engine packages (Prevents Header Race Errors)
+          # Force inclusion of OpenSSL crypto package dependencies
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
           
-          # Enable dependencies and core packages to compile
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
@@ -88,7 +84,6 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-anchor=y" >> .config
           echo "CONFIG_PACKAGE_unbound-host=y" >> .config
           
-          # Native sub-package target switches
           echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
@@ -102,19 +97,15 @@ jobs:
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # 1. Compile baseline tools and cross-compiler toolchain normally
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
 
-          # 2. FORCE OPENSSL TO COMPILE WITH TRUE ARMv8 HARDWARE CRYPTO
+          # FORCE OPENSSL TO COMPILE WITH TRUE ARMv8 HARDWARE CRYPTO ASSEMBLY ENGINE
           echo "⚙️ Injecting ARMv8 Crypto Engine switches into OpenSSL..."
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
           
           if [ -f "$OPENSSL_MAKEFILE" ]; then
-            # Force the hardware compiler architecture flags directly into OpenSSL's build routine
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$OPENSSL_MAKEFILE"
-            
-            # Explicitly force OpenSSL config system to flag for the native 64-bit ARMv8 assembly layer
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
             
             echo "🏗 Compiling hardware-accelerated OpenSSL core..."
@@ -123,19 +114,16 @@ jobs:
             echo "❌ Error: OpenSSL Makefile not found at $OPENSSL_MAKEFILE!" && exit 1
           fi
           
-          # 3. Compile standard dependencies normally
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
-          # 4. Clean and prepare Unbound workspace
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
           make package/feeds/packages/unbound/download
           
-          # 5. EXECUTE COUPLING LAYER: Build custom optimized package stack
           echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
