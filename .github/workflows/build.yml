@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r600 (Certified Hardened O2 Build)
+# Version 1.26.0-Production-TrueARMv8Offload-RedisEnabled-r300 (Certified Hardened O2 Build)
 name: Build True ARMv8 Optimized Unbound 1.26.0 APK
 
 on:
@@ -31,6 +31,9 @@ jobs:
         run: |
           MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
           
+          # Find the exact dynamic location of OpenSSL's core Makefile to avoid path breaking
+          OPENSSL_PATH=$(find openwrt/package/ -name Makefile | grep "openssl/Makefile" | head -n 1)
+          
           if [ -f "$MAKEFILE_PATH" ]; then
             echo "⚙️ Tweaking specific package configuration parameter block..."
             
@@ -41,8 +44,8 @@ jobs:
             # 2. FORCE CACHEDB MODULE SEQUENCE ALIGNMENT
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
-            # 3. CACHE CONTROL RELEASE BUMP
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
+            # 3. CACHE CONTROL RELEASE BUMP (Set to 300)
+            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=300|g' "$MAKEFILE_PATH"
             
             # 4. FIXED DEPENDENCY INJECTION
             sed -i '/define Package\/unbound-daemon/a \  DEPENDS+= +libhiredis +libsodium +libevent2' "$MAKEFILE_PATH"
@@ -51,8 +54,14 @@ jobs:
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
             # 6. FIXED CONFIGURE ARGS APPEND
-            # This relies on the exact payload string pattern verified by your compiler log tracking.
             sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr --with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"|g' "$MAKEFILE_PATH"
+            
+            # 7. FORCE OPENSSL HARDWARE ENGINES NATIVELY
+            if [ -n "$OPENSSL_PATH" ] && [ -f "$OPENSSL_PATH" ]; then
+              echo "⚙️ Intercepting core OpenSSL configuration at: $OPENSSL_PATH"
+              sed -i 's|OPENSSL_OPTIONS += no-asm|OPENSSL_OPTIONS += enable-asm|g' "$OPENSSL_PATH" || true
+              sed -i 's|OPENSSL_OPTIONS+=no-asm|OPENSSL_OPTIONS+=enable-asm|g' "$OPENSSL_PATH" || true
+            fi
             
             echo "📊 Verifying Patch Integrity..."
             grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS" "$MAKEFILE_PATH" || true
@@ -68,6 +77,10 @@ jobs:
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
+          
+          # HARDWARE CRYPTO ENGINE OVERRIDE CONFIGURATION BLOCK
+          echo "CONFIG_PACKAGE_libopenssl-armv8-asm=y" >> .config
+          echo "CONFIG_OPENSSL_WITH_ASM=y" >> .config
           
           # Enable dependencies and core packages to compile
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
@@ -98,15 +111,18 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
-          # 2. Compile standard dependencies normally
+          # 2. Compile standard dependencies normally using shortcut compilation targets
           echo "📦 Pre-compiling Libsodium toolchain requirements..."
-          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/libsodium/compile V=s -j$(nproc)
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
-          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          make package/hiredis/compile V=s -j$(nproc)
 
           echo "📦 Pre-compiling Libevent toolchain requirements..."
-          make package/feeds/base/libevent2/compile V=s -j$(nproc)
+          make package/libevent2/compile V=s -j$(nproc)
+
+          echo "📦 Pre-compiling Accelerated OpenSSL toolchain requirements..."
+          make package/openssl/compile V=s -j$(nproc)
 
       - name: Hardened Unbound High-Performance Native Compilation Step
         run: |
@@ -114,11 +130,11 @@ jobs:
           export FORCE_UNSAFE_CONFIGURE=1
           
           echo "🧹 Performing clean build sweep on Unbound..."
-          make package/feeds/packages/unbound/clean
-          make package/feeds/packages/unbound/download
+          make package/unbound/clean
+          make package/unbound/download
           
           echo "🏗 Compiling custom Unbound suite with protected hardware crypto flags..."
-          make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
+          make package/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Verify Binary Architecture Flags
         run: |
