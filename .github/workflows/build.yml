@@ -1,4 +1,4 @@
-name: Build Complete Full ARMv8 Optimized OpenSSL Only
+name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
+          ./scripts/feeds install libsodium hiredis
+          ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
       - name: Configure M30 Target Architecture
         run: |
@@ -31,19 +33,23 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Standard compiler speed configurations
+          # Target CPU speed enhancements
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          # Native hardware crypto expansion hooks
+          # Native hardware crypto switches
           echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y" >> .config
 
-          # Standard OpenSSL packages
+          # Packages list
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
           echo "CONFIG_PACKAGE_openssl-util=y" >> .config
+          echo "CONFIG_PACKAGE_libsodium=y" >> .config
+          echo "CONFIG_PACKAGE_libhiredis=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound=y" >> .config
+          echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           make defconfig
 
       - name: Compile Cross Toolchain Baseline
@@ -53,21 +59,38 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
 
-      # 🟩 THE DEPENDENCY FIX: Compiling the target list cleanly in a single execution line
-      - name: Compile Target Hardware Cryptography Packages
+      # 🟩 THE DEFINITIVE FIX: Use global index + specific targets to avoid the kernel error block entirely
+      - name: Compile Packages Matrix
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          make package/{kernel/linux,libs/openssl}/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
+          
+          echo "Updating global target package index..."
+          make package/index
+          
+          echo "Compiling hardware crypto bridge package..."
+          make package/cryptodev-linux/compile V=s -j$(nproc)
+          
+          echo "Compiling optimized OpenSSL core stack..."
+          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
+          
+          echo "Compiling support libraries..."
+          make package/libs/libevent2/compile V=s -j$(nproc)
+          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          
+          echo "Compiling Unbound suite..."
+          make package/feeds/packages/unbound/compile V=s -j$(nproc)
 
       - name: Gather All Output APK Packages
         run: |
           TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
           mkdir -p "$TARGET_BIN_DIR"
           find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
+          find openwrt/bin/targets/mediatek/filogic/kmods/ -name "*cryptodev*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
 
       - name: Upload Artifact Packages
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-openssl-only-packages
+          name: dlink-m30-hardware-crypto-packages
           path: openwrt/bin/**/*.apk
