@@ -26,16 +26,25 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      # 🟩 THE ACCELERATION FORCER: Hardcode hardware engine defaults natively into the source profiles
-      - name: Hard-Coded Patch of OpenSSL and Unbound Source Rules
+      # 🟩 THE MASTER FORCER: Patching the core Linux kernel profile and OpenSSL definitions before compilation
+      - name: Force Hardware Crypto Subsystem Defaults Into Core Source
         run: |
           cd openwrt
           
-          # Force OpenSSL configuration menus to natively treat engines as an active default
+          # Force the master OpenSSL menu definitions to natively treat engine routing as active
           sed -i 's/default n/default y/g' package/libs/openssl/Config.in
           
-          # Force the global compiler rules file to accept ARMv8 optimizations over standard size cuts
+          # Force the global compiler optimization file to accept ARMv8 speed instructions over size cuts
           sed -i 's/-Os/-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
+          
+          # 🔒 THE ULTIMATE KERNEL LINK: Append engine routing parameters straight into the MediaTek driver definition profile
+          TARGET_KERNEL_CONFIG=$(find target/linux/mediatek/filogic/ -name "config-*" | head -n 1)
+          if [ -f "$TARGET_KERNEL_CONFIG" ]; then
+            echo "CONFIG_CRYPTO_USER=y" >> "$TARGET_KERNEL_CONFIG"
+            echo "CONFIG_CRYPTO_DEV_VIRTIO=y" >> "$TARGET_KERNEL_CONFIG"
+            echo "CONFIG_CRYPTO_HW=y" >> "$TARGET_KERNEL_CONFIG"
+            echo "CONFIG_CRYPTO_DEV_SAFEXCEL=y" >> "$TARGET_KERNEL_CONFIG"
+          fi
           
           # Modify Unbound package definitions to fetch, hash, and compile version 1.26.0 cleanly
           UNBOUND_MAKEFILE="feeds/packages/net/unbound/Makefile"
@@ -44,7 +53,7 @@ jobs:
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$UNBOUND_MAKEFILE"
             sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$UNBOUND_MAKEFILE"
             
-            # Safely append cacheDB and libhiredis requirements into the compile array strings
+            # Secure clean configuration injections inside internal compilation arrays
             sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$UNBOUND_MAKEFILE"
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$UNBOUND_MAKEFILE"
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$UNBOUND_MAKEFILE"
@@ -57,7 +66,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force lock package selections globally to built-in state
+          # Force lock package selections globally to built-in
           echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
@@ -78,7 +87,7 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
 
-      # 🟩 THE FIXED COMPILATION BLOCK: Safe target sequences that build only the requested binaries
+      # 🟩 THE NATIVE COMPILATION BUILD PASS: Runs native execution tracks sequentially to prevent dependency crashes
       - name: Run Focused Packages Generation
         run: |
           cd openwrt
