@@ -26,6 +26,24 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
+      # 🟩 THE OVERRIDE FIX: Injecting version pinning and Redis flags straight into the source definitions
+      - name: Hard-Coded Tweak of Unbound Suite Version and Engine Manifest
+        run: |
+          MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
+          if [ -f "$MAKEFILE_PATH" ]; then
+            echo "⚙️ Configuring version parameters inside Unbound package manifest..."
+            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
+            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
+            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
+            
+            # Secure clean configuration injections inside internal compilation arrays
+            sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
+            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
+          else
+            echo "❌ Error: Unbound Makefile not found!" && exit 1
+          fi
+
       - name: Configure M30 Target Architecture
         run: |
           cd openwrt
@@ -33,7 +51,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Target CPU speed optimizations
+          # Target compiler optimizations
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
           # Force native hardware engine components globally
@@ -52,14 +70,13 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           make defconfig
 
-      # 🟩 THE DEFINITIVE FIX: Unified top-level execution path
       - name: Run Unified Target Generation
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           make -j$(nproc)
 
-      - name: Upload Finished Artifact Folder
+      - name: Upload Artifact Packages
         uses: actions/upload-artifact@v4
         with:
           name: dlink-m30-hardware-accelerated-firmware
