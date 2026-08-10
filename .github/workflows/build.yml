@@ -26,27 +26,18 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      # 🟩 THE MASTER FORCER: Patching the core Linux kernel profile and OpenSSL definitions before compilation
-      - name: Force Hardware Crypto Subsystem Defaults Into Core Source
+      # 🟩 THE VISUAL CHECKBOX OVERRIDE: Hardcoding your exact menu choices straight into the source definitions
+      - name: Patch Package Config Files Natively
         run: |
           cd openwrt
           
-          # Force the master OpenSSL menu definitions to natively treat engine routing as active
+          # 1. Force the master OpenSSL menu configurations to change 'default n' to 'default y' for engines
           sed -i 's/default n/default y/g' package/libs/openssl/Config.in
           
-          # Force the global compiler optimization file to accept ARMv8 speed instructions over size cuts
+          # 2. Force the global compiler rules file to accept ARMv8 optimizations over standard size savings
           sed -i 's/-Os/-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
           
-          # 🔒 THE ULTIMATE KERNEL LINK: Append engine routing parameters straight into the MediaTek driver definition profile
-          TARGET_KERNEL_CONFIG=$(find target/linux/mediatek/filogic/ -name "config-*" | head -n 1)
-          if [ -f "$TARGET_KERNEL_CONFIG" ]; then
-            echo "CONFIG_CRYPTO_USER=y" >> "$TARGET_KERNEL_CONFIG"
-            echo "CONFIG_CRYPTO_DEV_VIRTIO=y" >> "$TARGET_KERNEL_CONFIG"
-            echo "CONFIG_CRYPTO_HW=y" >> "$TARGET_KERNEL_CONFIG"
-            echo "CONFIG_CRYPTO_DEV_SAFEXCEL=y" >> "$TARGET_KERNEL_CONFIG"
-          fi
-          
-          # Modify Unbound package definitions to fetch, hash, and compile version 1.26.0 cleanly
+          # 3. Modify Unbound package definitions to fetch, hash, and compile version 1.26.0 cleanly
           UNBOUND_MAKEFILE="feeds/packages/net/unbound/Makefile"
           if [ -f "$UNBOUND_MAKEFILE" ]; then
             sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$UNBOUND_MAKEFILE"
@@ -66,7 +57,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force lock package selections globally to built-in
+          # Force lock package selections globally to built-in state
           echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
@@ -74,8 +65,14 @@ jobs:
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
           echo "CONFIG_PACKAGE_openssl-util=y" >> .config
+          
+          # The support libraries you selected visually in menuconfig
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
+          echo "CONFIG_PACKAGE_libevent2=y" >> .config
+          echo "CONFIG_PACKAGE_libexpat=y" >> .config
+          
+          # The full Unbound stack selections
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           make defconfig
@@ -87,7 +84,7 @@ jobs:
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
 
-      # 🟩 THE NATIVE COMPILATION BUILD PASS: Runs native execution tracks sequentially to prevent dependency crashes
+      # 🟩 THE STEP-BY-STEP COMPILER QUEUE: Built exactly like the manual steps we mapped out
       - name: Run Focused Packages Generation
         run: |
           cd openwrt
@@ -106,11 +103,12 @@ jobs:
           make package/libs/libevent2/compile V=s -j$(nproc)
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          make package/feeds/packages/expat/compile V=s -j$(nproc)
           
-          echo "Compiling full custom Unbound suite..."
+          echo "Compiling full custom Unbound matrix..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc)
 
-      - name: Gather All Output Target Packages
+      - name: Gather Output Artifacts
         run: |
           TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
           mkdir -p "$TARGET_BIN_DIR"
@@ -121,4 +119,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dlink-m30-hardware-accelerated-packages
-          path: openwrt/bin/
+          path: openwrt/bin/packages/aarch64_cortex-a53/base/
