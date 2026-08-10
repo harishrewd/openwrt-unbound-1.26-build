@@ -1,4 +1,4 @@
-# Version 1.27.0-Production-HardwareCryptoOffloaded
+# Version 1.28.0-Production-HardwareCryptoOffloaded
 name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
@@ -115,13 +115,14 @@ jobs:
           echo "🏗 Compiling kernel devcrypto driver package..."
           make package/kernel/linux/compile V=s -j$(nproc)
 
-          # 1. COMPILE OPENSSL Core
+          # 1. COMPILE OPENSSL Core WITH ENGINE ARGUMENTS
           echo "🏗 Compiling hardware-accelerated OpenSSL core..."
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
           if [ -f "$OPENSSL_MAKEFILE" ]; then
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
           fi
-          make package/libs/openssl/compile V=s -j$(nproc)
+          # 🟩 FIX: Explicitly forcing engine variables straight into the package compilation line
+          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
           
           # 2. COMPILE LIBEVENT 
           echo "🏗 Compiling hardware-accelerated libevent..."
