@@ -1,5 +1,5 @@
-# Version 1.28.0-Production-HardwareCryptoOffloaded
-name: Build Complete Full ARMv8 Optimized Unbound Matrix
+# Version 1.30.0-Production-SedInjectedBulletproof
+name: Build Complete Full ARMv8 Optimized Unbound Matrix (Makefile Injected)
 
 on:
   workflow_dispatch:
@@ -45,6 +45,21 @@ jobs:
             echo "❌ Error: Unbound Makefile not found!" && exit 1
           fi
 
+      - name: Force Hardware Crypto Defaults inside OpenSSL Makefile
+        run: |
+          OPENSSL_MAKE_PATH="openwrt/package/libs/openssl/Makefile"
+          if [ -f "$OPENSSL_MAKE_PATH" ]; then
+            echo "🔥 Modifying OpenSSL Makefile definitions permanently..."
+            # Force target flags directly into the configuration block of the Makefile
+            sed -i '/ifeq (\$(CONFIG_OPENSSL_ENGINE),y)/i\CONFIG_OPENSSL_ENGINE:=y\nCONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO:=y' "$OPENSSL_MAKE_PATH"
+            
+            # Append forcing arguments straight into the compilation configuration array
+            sed -i '/\$(OPENSSL_TARGET)/a \t\tenable-devcryptoeng \\' "$OPENSSL_MAKE_PATH"
+            echo "✔ OpenSSL Makefile hard-patched successfully!"
+          else
+            echo "❌ Error: OpenSSL Makefile not found!" && exit 1
+          fi
+
       - name: Configure M30 Target Architecture & Build System Matrix
         run: |
           cd openwrt
@@ -55,7 +70,7 @@ jobs:
           # Force the global compiler optimization sweep inside the config tracking seed
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          # 🟩 THE ENGINE ACCELERATION SWITCHES: Force user-space engine compilation
+          # Force baseline variables just in case
           echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
@@ -88,60 +103,64 @@ jobs:
           cd openwrt
           echo "🔥 Injecting ARMv8 speed optimizations directly into target.mk definitions..."
           
-          # Force replacement of default optimization flags inside OpenWrt's master target framework file
           TARGET_MK="include/target.mk"
           if [ -f "$TARGET_MK" ]; then
             sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK"
             sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
           fi
           
-          # Force block overrides in the root system rules map file to stop size cut-offs completely
           sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' rules.mk
 
-      - name: Compile Toolchain and Universal Hardware Matrix
+      - name: Compile Toolchain Baseline
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # Inject immutable environment variables into the active cross-build session shell
           export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
           export TARGET_CXXFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
           export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
           
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
-          
-          # 🔗 COMPILE KERNEL BRIDGE DRIVER
-          echo "🏗 Compiling kernel devcrypto driver package..."
-          make package/kernel/linux/compile V=s -j$(nproc)
 
-          # 1. COMPILE OPENSSL Core WITH ENGINE ARGUMENTS
-          echo "🏗 Compiling hardware-accelerated OpenSSL core..."
+      - name: 🛑 FAIL-FAST LAYER: Immediate Hardware Crypto Validation
+        run: |
+          cd openwrt
+          export FORCE_UNSAFE_CONFIGURE=1
+          
+          echo "⏳ Validating kernel driver layer compilation..."
+          make package/kernel/linux/compile V=s -j$(nproc)
+          
+          echo "⏳ Validating core hard-patched OpenSSL architecture compilation..."
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
           if [ -f "$OPENSSL_MAKEFILE" ]; then
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
           fi
-          # 🟩 FIX: Explicitly forcing engine variables straight into the package compilation line
-          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
+          make package/libs/openssl/compile V=s -j$(nproc)
+
+      - name: Compile Remaining Support Libraries Stack
+        run: |
+          cd openwrt
+          export FORCE_UNSAFE_CONFIGURE=1
           
-          # 2. COMPILE LIBEVENT 
           echo "🏗 Compiling hardware-accelerated libevent..."
           make package/libs/libevent2/compile V=s -j$(nproc)
 
-          # 3. COMPILE LIBEXPAT
           echo "🏗 Compiling hardware-accelerated libexpat..."
           make package/feeds/packages/expat/compile V=s -j$(nproc)
 
-          # 4. COMPILE LIBSODIUM & HIREDIS 
+          echo "🏗 Compiling hardware-accelerated libsodium..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          
+          echo "🏗 Compiling hardware-accelerated hiredis..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
-          # 5. COMPILE ALL COMPLETE UNBOUND PACKAGES AT ONCE
+          echo "🏗 Compiling full complete patch matrix for Unbound suite..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Rescue All Hardware-Accelerated Matrix Packages via Wildcard
         run: |
-          echo "🚀 Running universal wildcard finder sweep across compilation workspace tracks..."
+          echo "🚀 Running universal wildcard finder sweep across workspace tracks..."
           TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
           mkdir -p "$TARGET_BIN_DIR"
           
@@ -152,12 +171,11 @@ jobs:
              fi
           done
           
-          # Gather all alternative locations from internal bin outputs to consolidate files
           find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
           echo "✔ Complete structural matrix rescue completed successfully!"
 
       - name: Upload All Finished Packages
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-universal-hardware-matrix-packages
+          name: dlink-m30-makefile-injected-packages
           path: openwrt/bin/**/*.apk
