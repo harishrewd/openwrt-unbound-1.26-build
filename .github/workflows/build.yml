@@ -70,14 +70,43 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           make defconfig
 
-      - name: Run Unified Target Generation
+      - name: Compile Cross Toolchain Baseline
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          make -j$(nproc)
+          make tools/install -j$(nproc)
+          make toolchain/install -j$(nproc)
+
+      # 🟩 FIXED ISOLATED PACKAGE TARGETS: Forces specific compiling commands so settings cannot be silently deleted
+      - name: Run Focused Packages Generation
+        run: |
+          cd openwrt
+          export FORCE_UNSAFE_CONFIGURE=1
+          
+          echo "Updating local workspace index maps..."
+          make package/index
+          
+          echo "Compiling hardware-accelerated OpenSSL binaries..."
+          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
+          
+          echo "Compiling support libraries stack..."
+          make package/libs/libevent2/compile V=s -j$(nproc)
+          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          
+          echo "Compiling full custom Unbound matrix..."
+          make package/feeds/packages/unbound/compile V=s -j$(nproc)
+
+      - name: Gather All Output Target Packages
+        run: |
+          TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
+          mkdir -p "$TARGET_BIN_DIR"
+          find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
+          find openwrt/bin/targets/mediatek/filogic/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
 
       - name: Upload Artifact Packages
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-hardware-accelerated-firmware
+          name: dlink-m30-hardware-accelerated-packages
+          # 🟩 RESTORED FOR SAFETY: Grabs the full root folder to guarantee no path-finding crashes at the end
           path: openwrt/bin/
