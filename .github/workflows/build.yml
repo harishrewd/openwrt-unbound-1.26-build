@@ -1,4 +1,4 @@
-# Version 1.30.0-Production-SedInjectedBulletproof
+# Version 1.31.0-Production-SedInjectedBulletproof
 name: Build Complete Full ARMv8 Optimized Unbound Matrix (Makefile Injected)
 
 on:
@@ -136,7 +136,8 @@ jobs:
           if [ -f "$OPENSSL_MAKEFILE" ]; then
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
           fi
-          make package/libs/openssl/compile V=s -j$(nproc)
+          # 🟩 FLAT SINGLE LINE FIX: Removed multi-line backslash strings to prevent YAML syntax failure
+          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
 
       - name: Compile Remaining Support Libraries Stack
         run: |
