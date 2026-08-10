@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-UniversalMatrixRescue-r600 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-UniversalMatrixRescue-PlanB (Certified Hardened Environment Export)
 name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
@@ -27,27 +27,20 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      - name: Hard-Coded Injection of True ARMv8 Flags into Unbound Suite Master Engine
+      - name: Hard-Coded Tweak of Unbound Suite Version and Engine Manifest
         run: |
           MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
           if [ -f "$MAKEFILE_PATH" ]; then
-            echo "⚙️ Tweaking specific package configuration parameter block..."
+            echo "⚙️ Configuring version parameters inside Unbound package manifest..."
             sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
-            
-            # Injection switch block mapping parameters to handle ALL custom internal utilities
-            sed -i 's|--enable-tfo-server|--enable-tfo-server --with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
-            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
             
-            # Link dependency updates and optimization routines
+            # Map parameters cleanly inside core configuration arguments array
+            sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
-            
-            # Inject architecture overrides using safe package tracking layout appends
-            echo 'TARGET_CFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> "$MAKEFILE_PATH"
-            echo 'EXTRA_CFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> "$MAKEFILE_PATH"
-            echo 'TARGET_LDFLAGS += -Wl,--gc-sections' >> "$MAKEFILE_PATH"
           else
             echo "❌ Error: Unbound Makefile not found!" && exit 1
           fi
@@ -59,7 +52,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force the global compiler optimization sweep (strips -Os constraints globally)
+          # Inject global speed profile tracking configurations straight into seed matrix
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
@@ -81,26 +74,23 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Force Global Toolchain System Optimization Interception
-        run: |
-          cd openwrt
-          # Safely rewrite the core global compilation configuration variables inside OpenWrt framework headers
-          TARGET_MK="include/target.mk"
-          if [ -f "$TARGET_MK" ]; then
-            echo "⚙️ Tweaking root global optimization parameters map..."
-            sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK" 2>/dev/null || true
-            sed -i 's|Optimization flags|Optimization flags\nTARGET_CFLAGS+= -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nTARGET_CXXFLAGS+= -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
-          fi
-
       - name: Compile Toolchain and Universal Hardware Matrix
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
+          # =========================================================================
+          # 🔥 PLAN B ENVIRONMENT EXPORT LOCKS: Bypasses Makefile overrides entirely!
+          # =========================================================================
+          export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
+          export TARGET_CXXFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
+          export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
+          export TARGET_LDFLAGS="-Wl,--gc-sections"
+          
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
           
-          # 1. COMPILE OPENSSL (Safely picks up global armv8 configuration)
+          # 1. COMPILE OPENSSL WITH HARDWARE PLATFORM SPECIFICATION
           echo "🏗 Compiling hardware-accelerated OpenSSL core..."
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
           if [ -f "$OPENSSL_MAKEFILE" ]; then
@@ -116,7 +106,7 @@ jobs:
           echo "🏗 Compiling hardware-accelerated libexpat..."
           make package/feeds/packages/expat/compile V=s -j$(nproc)
 
-          # 4. COMPILE LIBSODIUM & HIREDIS (Bypasses errors by reading clean root environment tracking strings!)
+          # 4. COMPILE LIBSODIUM & HIREDIS (Cleanly ingests exported environment variables!)
           echo "🏗 Compiling optimized libsodium..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
