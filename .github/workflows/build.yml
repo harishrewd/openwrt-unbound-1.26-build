@@ -1,5 +1,4 @@
-# Version 1.31.0-Production-SedInjectedBulletproof
-name: Build Complete Full ARMv8 Optimized Unbound Matrix (Makefile Injected)
+name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
   workflow_dispatch:
@@ -27,61 +26,28 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      - name: Hard-Coded Tweak of Unbound Suite Version and Engine Manifest
-        run: |
-          MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
-          if [ -f "$MAKEFILE_PATH" ]; then
-            echo "⚙️ Configuring version parameters inside Unbound package manifest..."
-            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
-            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
-            
-            # Map parameters cleanly inside core configuration arguments array
-            sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
-            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
-            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
-            sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
-          else
-            echo "❌ Error: Unbound Makefile not found!" && exit 1
-          fi
-
-      - name: Force Hardware Crypto Defaults inside OpenSSL Makefile
-        run: |
-          OPENSSL_MAKE_PATH="openwrt/package/libs/openssl/Makefile"
-          if [ -f "$OPENSSL_MAKE_PATH" ]; then
-            echo "🔥 Modifying OpenSSL Makefile definitions permanently..."
-            # Force target flags directly into the configuration block of the Makefile
-            sed -i '/ifeq (\$(CONFIG_OPENSSL_ENGINE),y)/i\CONFIG_OPENSSL_ENGINE:=y\nCONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO:=y' "$OPENSSL_MAKE_PATH"
-            
-            # Append forcing arguments straight into the compilation configuration array
-            sed -i '/\$(OPENSSL_TARGET)/a \t\tenable-devcryptoeng \\' "$OPENSSL_MAKE_PATH"
-            echo "✔ OpenSSL Makefile hard-patched successfully!"
-          else
-            echo "❌ Error: OpenSSL Makefile not found!" && exit 1
-          fi
-
-      - name: Configure M30 Target Architecture & Build System Matrix
+      - name: Configure M30 Target Architecture
         run: |
           cd openwrt
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force the global compiler optimization sweep inside the config tracking seed
+          # Standard compiler speed configurations
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          # Force baseline variables just in case
+          # Native hardware crypto expansion hooks
           echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y" >> .config
 
-          # Define mandatory OpenSSL packages
+          # Standard OpenSSL packages
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
           echo "CONFIG_PACKAGE_openssl-util=y" >> .config
           
-          # Define Unbound matrix packages
+          # Standard Unbound packages
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
@@ -98,85 +64,40 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Brute Force Hack of Master Target Optimization Rules
-        run: |
-          cd openwrt
-          echo "🔥 Injecting ARMv8 speed optimizations directly into target.mk definitions..."
-          
-          TARGET_MK="include/target.mk"
-          if [ -f "$TARGET_MK" ]; then
-            sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK"
-            sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
-          fi
-          
-          sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' rules.mk
-
-      - name: Compile Toolchain Baseline
+      - name: Compile Cross Toolchain
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          
-          export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export TARGET_CXXFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
 
-      - name: 🛑 FAIL-FAST LAYER: Immediate Hardware Crypto Validation
+      - name: Compile Native Hardware Cryptography Bridge
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          
-          echo "⏳ Validating kernel driver layer compilation..."
           make package/kernel/linux/compile V=s -j$(nproc)
-          
-          echo "⏳ Validating core hard-patched OpenSSL architecture compilation..."
-          OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
-          if [ -f "$OPENSSL_MAKEFILE" ]; then
-            sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
-          fi
-          # 🟩 FLAT SINGLE LINE FIX: Removed multi-line backslash strings to prevent YAML syntax failure
-          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
 
-      - name: Compile Remaining Support Libraries Stack
+      - name: Compile Target Packages Stack
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          echo "🏗 Compiling hardware-accelerated libevent..."
+          # Forcing crypto values straight into standard package builds
+          make package/libs/openssl/compile V=s -j$(nproc) CONFIG_OPENSSL_ENGINE=y CONFIG_OPENSSL_ENGINE_BUILTIN=y CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y
           make package/libs/libevent2/compile V=s -j$(nproc)
-
-          echo "🏗 Compiling hardware-accelerated libexpat..."
           make package/feeds/packages/expat/compile V=s -j$(nproc)
-
-          echo "🏗 Compiling hardware-accelerated libsodium..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
-          
-          echo "🏗 Compiling hardware-accelerated hiredis..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
-          
-          echo "🏗 Compiling full complete patch matrix for Unbound suite..."
-          make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
+          make package/feeds/packages/unbound/compile V=s -j$(nproc)
 
-      - name: Rescue All Hardware-Accelerated Matrix Packages via Wildcard
+      - name: Gather All Output APK Packages
         run: |
-          echo "🚀 Running universal wildcard finder sweep across workspace tracks..."
           TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
           mkdir -p "$TARGET_BIN_DIR"
-          
-          find openwrt/build_dir/target-aarch64_cortex-a53_musl/ -type d -name "ipkg-*" | while read -r IPKG_ROOT; do
-             if [ -d "$IPKG_ROOT/kmod-cryptodev" ] || [ -d "$IPKG_ROOT/libopenssl" ] || [ -d "$IPKG_ROOT/libopenssl3" ] || [ -d "$IPKG_ROOT/openssl-util" ] || [ -d "$IPKG_ROOT/libevent2" ] || [ -d "$IPKG_ROOT/libevent2-7" ] || [ -d "$IPKG_ROOT/libexpat" ] || [ -d "$IPKG_ROOT/unbound-daemon" ] || [ -d "$IPKG_ROOT/unbound-control" ] || [ -d "$IPKG_ROOT/unbound-checkconf" ] || [ -d "$IPKG_ROOT/unbound-anchor" ] || [ -d "$IPKG_ROOT/unbound-host" ] || [ -d "$IPKG_ROOT/libhiredis" ] || [ -d "$IPKG_ROOT/libsodium" ]; then
-                echo "Securing critical hardware package matching layer: $IPKG_ROOT"
-                find "$IPKG_ROOT" \( -name "*.apk" -o -name "*.ipk" \) -exec cp -v -f {} "$TARGET_BIN_DIR"/ \;
-             fi
-          done
-          
           find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
-          echo "✔ Complete structural matrix rescue completed successfully!"
 
-      - name: Upload All Finished Packages
+      - name: Upload Artifact Packages
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-makefile-injected-packages
+          name: dlink-m30-standard-hardware-packages
           path: openwrt/bin/**/*.apk
