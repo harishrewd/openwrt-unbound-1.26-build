@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-AbsolutePackageDefaultsOverride-r900 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-TrueSpeedOverridden-r900 (Certified Complete 11-File Stack)
 name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
@@ -74,20 +74,20 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Brute Force Hack of Master Package Build Variables
+      - name: Brute Force Hack of Master Target Optimization Rules
         run: |
           cd openwrt
-          echo "🔥 Injecting ARMv8 speed optimizations directly into package-defaults.mk rules..."
+          echo "🔥 Injecting ARMv8 speed optimizations directly into target.mk definitions..."
           
-          # Force replacement of default CFLAGS and CXXFLAGS inside OpenWrt's core template manager file
-          DEFAULTS_MK="include/package-defaults.mk"
-          if [ -f "$DEFAULTS_MK" ]; then
-            sed -i 's|TARGET_CFLAGS\s*=.*|TARGET_CFLAGS = -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$DEFAULTS_MK"
-            sed -i 's|TARGET_CXXFLAGS\s*=.*|TARGET_CXXFLAGS = -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$DEFAULTS_MK"
+          # Force replacement of default optimization flags inside OpenWrt's master target framework file
+          TARGET_MK="include/target.mk"
+          if [ -f "$TARGET_MK" ]; then
+            sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK"
+            sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
           fi
           
-          # Force block overrides in the root system rules map file to stop size cut-offs
-          sed -i 's|-Os|-O2 -march=armv8-a+crc+crypto -mtune=cortex-a53|g' rules.mk
+          # Force block overrides in the root system rules map file to stop size cut-offs completely
+          sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' rules.mk
 
       - name: Compile Toolchain and Universal Hardware Matrix
         run: |
