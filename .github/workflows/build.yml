@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-UniversalMatrixRescue-PlanB (Certified Hardened Environment Export)
+# Version 1.26.0-Production-UniversalMatrixRescue-PlanC (Boss-Level Hardcoded GCC Hijack)
 name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
@@ -51,44 +51,50 @@ jobs:
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
-          
-          # Inject global speed profile tracking configurations straight into seed matrix
-          echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
-          
-          echo "CONFIG_PACKAGE_libopenssl=y" >> .config
-          echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
-          echo "CONFIG_PACKAGE_openssl-util=y" >> .config
-          echo "CONFIG_PACKAGE_libsodium=y" >> .config
-          echo "CONFIG_PACKAGE_libhiredis=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-control=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-checkconf=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-anchor=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-host=y" >> .config
-          
-          echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
-          echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Compile Toolchain and Universal Hardware Matrix
+      - name: Compile Cross-Build Toolchain Baseline
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          
-          # =========================================================================
-          # 🔥 PLAN B ENVIRONMENT EXPORT LOCKS: Bypasses Makefile overrides entirely!
-          # =========================================================================
-          export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export TARGET_CXXFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export TARGET_LDFLAGS="-Wl,--gc-sections"
-          
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
+
+      - name: Hijack Toolchain Binaries and Force Hardcoded ARMv8 Flags
+        run: |
+          cd openwrt
+          echo "🔥 Executing absolute GCC compiler wrapper binary hijack loop..."
+          
+          # Find the exact cross-compiler directory created by the toolchain step
+          TOOLCHAIN_BIN_DIR=$(find staging_dir/ -type d -name "bin" | grep "toolchain-" | head -n 1)
+          
+          if [ -d "$TOOLCHAIN_BIN_DIR" ]; then
+            cd "$TOOLCHAIN_BIN_DIR"
+            
+            # Intercept the target C compiler
+            if [ -f "aarch64-openwrt-linux-musl-gcc" ]; then
+              mv aarch64-openwrt-linux-musl-gcc aarch64-openwrt-linux-musl-gcc.real
+              echo '#!/usr/bin/env bash' > aarch64-openwrt-linux-musl-gcc
+              echo 'exec "$(dirname "$0")/aarch64-openwrt-linux-musl-gcc.real" -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53 "$@"' >> aarch64-openwrt-linux-musl-gcc
+              chmod +x aarch64-openwrt-linux-musl-gcc
+            fi
+            
+            # Intercept the target C++ compiler
+            if [ -f "aarch64-openwrt-linux-musl-g++" ]; then
+              mv aarch64-openwrt-linux-musl-g++ aarch64-openwrt-linux-musl-g++.real
+              echo '#!/usr/bin/env bash' > aarch64-openwrt-linux-musl-g++
+              echo 'exec "$(dirname "$0")/aarch64-openwrt-linux-musl-g++.real" -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53 "$@"' >> aarch64-openwrt-linux-musl-g++
+              chmod +x aarch64-openwrt-linux-musl-g++
+            fi
+            echo "✅ GCC binary tracking hooks successfully hijacked with hardcoded flags!"
+          else
+            echo "❌ Error: Toolchain bin folder not found!" && exit 1
+          fi
+
+      - name: Compile Optimized 11-File Hardware Matrix Packages
+        run: |
+          cd openwrt
+          export FORCE_UNSAFE_CONFIGURE=1
           
           # 1. COMPILE OPENSSL WITH HARDWARE PLATFORM SPECIFICATION
           echo "🏗 Compiling hardware-accelerated OpenSSL core..."
@@ -106,7 +112,7 @@ jobs:
           echo "🏗 Compiling hardware-accelerated libexpat..."
           make package/feeds/packages/expat/compile V=s -j$(nproc)
 
-          # 4. COMPILE LIBSODIUM & HIREDIS (Cleanly ingests exported environment variables!)
+          # 4. COMPILE LIBSODIUM & HIREDIS (Clean and un-overrideable!)
           echo "🏗 Compiling optimized libsodium..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
           
