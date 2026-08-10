@@ -33,7 +33,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Target compiler optimizations
+          # Target CPU speed optimizations
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
           # Force native hardware engine components globally
@@ -52,21 +52,14 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           make defconfig
 
-      # 🟩 THE DEFINITIVE FIX: Running a standard automated build loop to handle internal dependencies naturally
+      # 🟩 THE DEFINITIVE FIX: Unified top-level execution path
       - name: Run Unified Target Generation
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           make -j$(nproc)
 
-      - name: Gather All Output Target Packages
-        run: |
-          TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
-          mkdir -p "$TARGET_BIN_DIR"
-          find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
-          find openwrt/bin/targets/mediatek/filogic/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
-
-      - name: Upload Artifact Packages
+      - name: Upload Finished Artifact Folder
         uses: actions/upload-artifact@v4
         with:
           name: dlink-m30-hardware-accelerated-firmware
