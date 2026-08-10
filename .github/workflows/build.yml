@@ -26,13 +26,16 @@ jobs:
           ./scripts/feeds install libsodium hiredis
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      # 🟩 THE OVERRIDE FIX: Hardcoding engine and version parameters directly inside the source profiles
+      # 🟩 THE ACCELERATION FORCER: Hardcode hardware engine defaults natively into the source profiles
       - name: Hard-Coded Patch of OpenSSL and Unbound Source Rules
         run: |
           cd openwrt
           
-          # Force OpenSSL to treat user-space engines as a built-in active default
+          # Force OpenSSL configuration menus to natively treat engines as an active default
           sed -i 's/default n/default y/g' package/libs/openssl/Config.in
+          
+          # Force the global compiler rules file to accept ARMv8 optimizations over standard size cuts
+          sed -i 's/-Os/-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
           
           # Modify Unbound package definitions to fetch, hash, and compile version 1.26.0 cleanly
           UNBOUND_MAKEFILE="feeds/packages/net/unbound/Makefile"
@@ -54,10 +57,7 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Target CPU speed optimizations
-          echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
-          
-          # Force lock package selections globally to built-in
+          # Force lock package selections globally to built-in state
           echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE=y" >> .config
           echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
@@ -71,14 +71,45 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           make defconfig
 
-      - name: Run Unified Target Generation
+      - name: Compile Cross Toolchain Baseline
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
-          make -j$(nproc)
+          make tools/install -j$(nproc)
+          make toolchain/install -j$(nproc)
 
-      - name: Upload Finished Artifact Folder
+      # 🟩 THE FIXED COMPILATION BLOCK: Safe target sequences that build only the requested binaries
+      - name: Run Focused Packages Generation
+        run: |
+          cd openwrt
+          export FORCE_UNSAFE_CONFIGURE=1
+          
+          echo "Building package dependency index maps..."
+          make package/index
+          
+          echo "Compiling hardware crypto bridge package natively..."
+          make package/cryptodev-linux/compile V=s -j$(nproc)
+          
+          echo "Compiling hardware-accelerated OpenSSL binaries cleanly..."
+          make package/libs/openssl/compile V=s -j$(nproc)
+          
+          echo "Compiling support libraries stack..."
+          make package/libs/libevent2/compile V=s -j$(nproc)
+          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+          
+          echo "Compiling full custom Unbound suite..."
+          make package/feeds/packages/unbound/compile V=s -j$(nproc)
+
+      - name: Gather All Output Target Packages
+        run: |
+          TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
+          mkdir -p "$TARGET_BIN_DIR"
+          find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
+          find openwrt/bin/targets/mediatek/filogic/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
+
+      - name: Upload Artifact Packages
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-hardware-accelerated-firmware
+          name: dlink-m30-hardware-accelerated-packages
           path: openwrt/bin/
