@@ -1,4 +1,4 @@
-# Version 1.26.0-Production-TrueSpeedOverridden-r900 (Certified Complete 11-File Stack)
+# Version 1.26.0-Production-TrueARMv8Hijack-r800 (Certified Complete 11-File Stack)
 name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
@@ -52,9 +52,6 @@ jobs:
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force the global compiler optimization sweep inside the config tracking seed
-          echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
-          
           echo "CONFIG_PACKAGE_libopenssl=y" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
           echo "CONFIG_PACKAGE_openssl-util=y" >> .config
@@ -74,35 +71,48 @@ jobs:
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Brute Force Hack of Master Target Optimization Rules
+      - name: Compile Cross-Build Toolchain Baseline
         run: |
           cd openwrt
-          echo "🔥 Injecting ARMv8 speed optimizations directly into target.mk definitions..."
-          
-          # Force replacement of default optimization flags inside OpenWrt's master target framework file
-          TARGET_MK="include/target.mk"
-          if [ -f "$TARGET_MK" ]; then
-            sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK"
-            sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
-          fi
-          
-          # Force block overrides in the root system rules map file to stop size cut-offs completely
-          sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' rules.mk
+          export FORCE_UNSAFE_CONFIGURE=1
+          make tools/install -j$(nproc)
+          make toolchain/install -j$(nproc)
 
-      - name: Compile Toolchain and Universal Hardware Matrix
+      - name: Hijack Toolchain Binaries and Force Hardcoded ARMv8 Flags
+        run: |
+          cd openwrt
+          echo "🔥 Executing absolute GCC compiler wrapper binary hijack loop..."
+          TOOLCHAIN_BIN_DIR=$(find staging_dir/ -type d -name "bin" | grep "toolchain-" | head -n 1)
+          
+          if [ -d "$TOOLCHAIN_BIN_DIR" ]; then
+            cd "$TOOLCHAIN_BIN_DIR"
+            
+            # Intercept the target C compiler
+            if [ -f "aarch64-openwrt-linux-musl-gcc" ]; then
+              mv aarch64-openwrt-linux-musl-gcc aarch64-openwrt-linux-musl-gcc.real
+              echo '#!/usr/bin/env bash' > aarch64-openwrt-linux-musl-gcc
+              echo 'exec "$(dirname "$0")/aarch64-openwrt-linux-musl-gcc.real" -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53 "$@"' >> aarch64-openwrt-linux-musl-gcc
+              chmod +x aarch64-openwrt-linux-musl-gcc
+            fi
+            
+            # Intercept the target C++ compiler
+            if [ -f "aarch64-openwrt-linux-musl-g++" ]; then
+              mv aarch64-openwrt-linux-musl-g++ aarch64-openwrt-linux-musl-g++.real
+              echo '#!/usr/bin/env bash' > aarch64-openwrt-linux-musl-g++
+              echo 'exec "$(dirname "$0")/aarch64-openwrt-linux-musl-g++.real" -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53 "$@"' >> aarch64-openwrt-linux-musl-g++
+              chmod +x aarch64-openwrt-linux-musl-g++
+            fi
+            echo "✅ GCC binary tracking hooks successfully hijacked with hardcoded flags!"
+          else
+            echo "❌ Error: Toolchain bin folder not found!" && exit 1
+          fi
+
+      - name: Compile Optimized 11-File Hardware Matrix Packages
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
           
-          # Inject immutable environment variables into the active cross-build session shell
-          export TARGET_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export TARGET_CXXFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          export EXTRA_CFLAGS="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"
-          
-          make tools/install -j$(nproc)
-          make toolchain/install -j$(nproc)
-          
-          # 1. COMPILE OPENSSL Core
+          # 1. COMPILE OPENSSL
           echo "🏗 Compiling hardware-accelerated OpenSSL core..."
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
           if [ -f "$OPENSSL_MAKEFILE" ]; then
@@ -110,7 +120,7 @@ jobs:
           fi
           make package/libs/openssl/compile V=s -j$(nproc)
           
-          # 2. COMPILE LIBEVENT (Using correct OpenWrt 25.12 path layout!)
+          # 2. COMPILE LIBEVENT (Targeting libevent2 directory for 25.12)
           echo "🏗 Compiling hardware-accelerated libevent..."
           make package/libs/libevent2/compile V=s -j$(nproc)
 
@@ -118,11 +128,15 @@ jobs:
           echo "🏗 Compiling hardware-accelerated libexpat..."
           make package/feeds/packages/expat/compile V=s -j$(nproc)
 
-          # 4. COMPILE LIBSODIUM & HIREDIS 
+          # 4. COMPILE LIBSODIUM & HIREDIS
+          echo "🏗 Compiling optimized libsodium..."
           make package/feeds/packages/libsodium/compile V=s -j$(nproc)
+          
+          echo "🏗 Compiling optimized hiredis..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
           # 5. COMPILE ALL COMPLETE UNBOUND PACKAGES AT ONCE
+          echo "🏗 Compiling full custom Unbound matrix suite..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Rescue All Hardware-Accelerated Matrix Packages via Wildcard
@@ -138,7 +152,7 @@ jobs:
              fi
           done
           
-          # Gather all alternative locations from internal bin outputs to consolidate files
+          # Gather alternative locations from bin outputs cleanly
           find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
           echo "✔ Complete structural matrix rescue completed successfully!"
 
