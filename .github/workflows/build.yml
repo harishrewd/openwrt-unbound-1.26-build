@@ -1,4 +1,4 @@
-name: Build Complete Full ARMv8 Optimized System Matrix
+name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
   workflow_dispatch:
@@ -23,100 +23,122 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
-          ./scripts/feeds install libsodium hiredis
+          ./scripts/feeds install libsodium hiredis expat
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
-      # 🟩 THE VISUAL CHECKBOX OVERRIDE: Hardcoding your exact menu choices straight into the source definitions
-      - name: Patch Package Config Files Natively
+      - name: Hard-Coded Tweak of Unbound Suite Version and Engine Manifest
         run: |
-          cd openwrt
-          
-          # 1. Force the master OpenSSL menu configurations to change 'default n' to 'default y' for engines
-          sed -i 's/default n/default y/g' package/libs/openssl/Config.in
-          
-          # 2. Force the global compiler rules file to accept ARMv8 optimizations over standard size savings
-          sed -i 's/-Os/-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
-          
-          # 3. Modify Unbound package definitions to fetch, hash, and compile version 1.26.0 cleanly
-          UNBOUND_MAKEFILE="feeds/packages/net/unbound/Makefile"
-          if [ -f "$UNBOUND_MAKEFILE" ]; then
-            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$UNBOUND_MAKEFILE"
+          MAKEFILE_PATH="openwrt/feeds/packages/net/unbound/Makefile"
+          if [ -f "$MAKEFILE_PATH" ]; then
+            echo "⚙️ Configuring version parameters inside Unbound package manifest..."
+            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.0|g' "$MAKEFILE_PATH"
+            sed -i 's|PKG_HASH:=.*|PKG_HASH:=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63|g' "$MAKEFILE_PATH"
+            sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
             
-            # Secure clean configuration injections inside internal compilation arrays
-            sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$UNBOUND_MAKEFILE"
-            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$UNBOUND_MAKEFILE"
+            # Map parameters cleanly inside core configuration arguments array
+            sed -i 's|--enable-tfo-server|--enable-tfo-server --enable-cachedb --with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
+            sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
+            sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
+            sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
+          else
+            echo "❌ Error: Unbound Makefile not found!" && exit 1
           fi
 
-      - name: Configure M30 Target Architecture
+      - name: Brute Force Hack of Master Target Optimization Rules
+        run: |
+          cd openwrt
+          echo "🔥 Injecting ARMv8 speed optimizations directly into system frameworks..."
+          
+          # Force OpenSSL to treat user-space engine support as built-in default choice
+          sed -i 's/default n/default y/g' package/libs/openssl/Config.in
+          
+          # Hard-overwrite default optimization designations inside master framework files
+          TARGET_MK="include/target.mk"
+          if [ -f "$TARGET_MK" ]; then
+            sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK"
+            sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
+          fi
+          
+          # Force replacement inside global system rule definitions
+          sed -i 's/TARGET_CFLAGS:=.*/TARGET_CFLAGS:=-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
+          sed -i 's/TARGET_CXXFLAGS:=.*/TARGET_CXXFLAGS:=-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
+          
+          # Inject immutable append definitions directly into foundational package tracking matrices
+          echo 'TARGET_CFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> rules.mk
+          echo 'TARGET_CXXFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> rules.mk
+          echo 'EXTRA_CFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> rules.mk
+
+      - name: Configure M30 Target Architecture & Build System Matrix
         run: |
           cd openwrt
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           
-          # Force lock package selections globally to built-in state
-          echo "CONFIG_PACKAGE_kmod-cryptodev=y" >> .config
-          echo "CONFIG_OPENSSL_ENGINE=y" >> .config
-          echo "CONFIG_OPENSSL_ENGINE_BUILTIN=y" >> .config
-          echo "CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO=y" >> .config
-          echo "CONFIG_PACKAGE_libopenssl=y" >> .config
-          echo "CONFIG_PACKAGE_libopenssl-conf=y" >> .config
-          echo "CONFIG_PACKAGE_openssl-util=y" >> .config
+          # Lock target optimizations into seed matrix configuration parameters
+          echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          # The support libraries you selected visually in menuconfig
-          echo "CONFIG_PACKAGE_libsodium=y" >> .config
-          echo "CONFIG_PACKAGE_libhiredis=y" >> .config
-          echo "CONFIG_PACKAGE_libevent2=y" >> .config
-          echo "CONFIG_PACKAGE_libexpat=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-cryptodev=m" >> .config
+          echo "CONFIG_PACKAGE_libopenssl=m" >> .config
+          echo "CONFIG_PACKAGE_libopenssl-conf=m" >> .config
+          echo "CONFIG_PACKAGE_libopenssl-devcrypto=m" >> .config
+          echo "CONFIG_PACKAGE_libopenssl-engine=m" >> .config
+          echo "CONFIG_PACKAGE_openssl-util=m" >> .config
+          echo "CONFIG_PACKAGE_libsodium=m" >> .config
+          echo "CONFIG_PACKAGE_libhiredis=m" >> .config
+          echo "CONFIG_PACKAGE_libexpat=m" >> .config
+          echo "CONFIG_PACKAGE_libevent2=m" >> .config
+          echo "CONFIG_PACKAGE_libunbound=m" >> .config
+          echo "CONFIG_PACKAGE_unbound-daemon=m" >> .config
+          echo "CONFIG_PACKAGE_unbound-control=m" >> .config
+          echo "CONFIG_PACKAGE_unbound-checkconf=m" >> .config
+          echo "CONFIG_PACKAGE_unbound-anchor=m" >> .config
+          echo "CONFIG_PACKAGE_unbound-host=m" >> .config
           
-          # The full Unbound stack selections
-          echo "CONFIG_PACKAGE_libunbound=y" >> .config
-          echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
+          echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           make defconfig
 
-      - name: Compile Cross Toolchain Baseline
+      - name: Compile Cross-Compiler Toolchain and Universal Hardware Matrix
         run: |
           cd openwrt
-          export FORCE_UNSAFE_CONFIGURE=1
+          
+          # Build underlying compilation host tools and target cross toolchains
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
-
-      # 🟩 THE STEP-BY-STEP COMPILER QUEUE: Built exactly like the manual steps we mapped out
-      - name: Run Focused Packages Generation
-        run: |
-          cd openwrt
-          export FORCE_UNSAFE_CONFIGURE=1
           
-          echo "Building package dependency index maps..."
+          # Compile the baseline kernel tree first to completely eliminate Error 2 dependency module crashes
+          make target/linux/compile -j$(nproc)
           make package/index
           
-          echo "Compiling hardware crypto bridge package natively..."
-          make package/cryptodev-linux/compile V=s -j$(nproc)
+          # Execute sequential package compilation streams tracking your exact structural requirements
+          make package/cryptodev-linux/compile -j$(nproc)
           
-          echo "Compiling hardware-accelerated OpenSSL binaries cleanly..."
-          make package/libs/openssl/compile V=s -j$(nproc)
+          # Force target definitions parameter inside OpenSSL package instructions block
+          OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
+          if [ -f "$OPENSSL_MAKEFILE" ]; then
+            sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
+            sed -i '/TARGET_CFLAGS/s/$/ -march=armv8-a+crc+crypto -mtune=cortex-a53/' "$OPENSSL_MAKEFILE"
+          fi
+          make package/libs/openssl/compile -j$(nproc)
           
-          echo "Compiling support libraries stack..."
-          make package/libs/libevent2/compile V=s -j$(nproc)
-          make package/feeds/packages/libsodium/compile V=s -j$(nproc)
-          make package/feeds/packages/hiredis/compile V=s -j$(nproc)
-          make package/feeds/packages/expat/compile V=s -j$(nproc)
+          # Inject forced parameters directly into Unbound's runtime recipe template right before execution
+          UNBOUND_MAKEFILE="feeds/packages/net/unbound/Makefile"
+          if [ -f "$UNBOUND_MAKEFILE" ]; then
+            sed -i '/TARGET_CFLAGS/s/$/ -march=armv8-a+crc+crypto -mtune=cortex-a53/' "$UNBOUND_MAKEFILE"
+          fi
           
-          echo "Compiling full custom Unbound matrix..."
-          make package/feeds/packages/unbound/compile V=s -j$(nproc)
+          make package/libs/libevent2/compile -j$(nproc)
+          make package/feeds/packages/expat/compile -j$(nproc)
+          make package/feeds/packages/libsodium/compile -j$(nproc)
+          make package/feeds/packages/hiredis/compile -j$(nproc)
+          make package/feeds/packages/unbound/compile -j$(nproc) IPKG_INSTANT_CHECK=0
 
-      - name: Gather Output Artifacts
-        run: |
-          TARGET_BIN_DIR="openwrt/bin/packages/aarch64_cortex-a53/base"
-          mkdir -p "$TARGET_BIN_DIR"
-          find openwrt/bin/packages/aarch64_cortex-a53/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
-          find openwrt/bin/targets/mediatek/filogic/ -name "*.apk" -exec cp -v -f {} "$TARGET_BIN_DIR"/ \; 2>/dev/null || true
-
-      - name: Upload Artifact Packages
+      - name: Securely Upload Compiled APK Artifacts to GitHub Dashboard
         uses: actions/upload-artifact@v4
         with:
-          name: dlink-m30-hardware-accelerated-packages
-          path: openwrt/bin/packages/aarch64_cortex-a53/base/
+          name: dlink-m30-universal-hardware-matrix-packages
+          path: openwrt/bin/**/*.apk
