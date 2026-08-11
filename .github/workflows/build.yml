@@ -122,14 +122,21 @@ jobs:
           # 1. Compile cryptodev core module
           make package/cryptodev-linux/compile -j$(nproc)
           
-          # 2. Force target definitions parameter inside OpenSSL package instructions block safely
+          # 2. Hard-patch individual OpenSSL configurations right before compiler execution drops
           OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
           if [ -f "$OPENSSL_MAKEFILE" ]; then
             sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
+            sed -i '/TARGET_CFLAGS/s/$/ -march=armv8-a+crc+crypto -mtune=cortex-a53/' "$OPENSSL_MAKEFILE"
           fi
           make package/libs/openssl/compile -j$(nproc)
           
-          # 3. Compile entire dependency package stack sequentially
+          # 3. Inject hardware parameters into the custom Unbound 1.26.0 recipe layout
+          UNBOUND_MAKEFILE="feeds/packages/net/unbound/Makefile"
+          if [ -f "$UNBOUND_MAKEFILE" ]; then
+            sed -i '/TARGET_CFLAGS/s/$/ -march=armv8-a+crc+crypto -mtune=cortex-a53/' "$UNBOUND_MAKEFILE"
+          fi
+          
+          # 4. Compile entire dependency package stack sequentially
           make package/libs/libmnl/compile -j$(nproc)
           make package/libs/libevent2/compile -j$(nproc)
           make package/feeds/packages/expat/compile -j$(nproc)
