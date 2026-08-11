@@ -1,4 +1,5 @@
-name: Full Automated Hardware Crypto Build Room (Auto-Download)
+# Version 1.26.0-Production-TrueSpeedOverridden-r600 (Certified Fixed 11-File Stack)
+name: Build Complete Full ARMv8 Optimized Unbound Matrix
 
 on:
   workflow_dispatch:
@@ -44,40 +45,39 @@ jobs:
             echo "❌ Error: Unbound Makefile not found!" && exit 1
           fi
 
-      - name: Hard-Patch Package Build Recipes (Bypass CFLAGS Stripping)
+      - name: Brute Force Hack of Master Target Optimization Rules
         run: |
           cd openwrt
+          echo "🔥 Injecting ARMv8 speed optimizations directly into system frameworks..."
           
-          # 1. Force OpenSSL to treat user-space engine support as built-in active default choice
+          # Force OpenSSL to treat user-space engine support as built-in active default choice
           sed -i 's/default n/default y/g' package/libs/openssl/Config.in
           
-          # 2. Hard-overwrite OpenWrt's core build optimization targets natively.
-          # Instead of appending flags, we hunt down the internal assignment variables inside rules.mk
-          # and forcibly replace them so the build engine cannot fallback or strip them down.
+          # Hard-overwrite default optimization designations inside master framework target.mk
+          TARGET_MK="include/target.mk"
+          if [ -f "$TARGET_MK" ]; then
+            sed -i 's|TARGET_CFLAGS_DESIGNATION=-Os|TARGET_CFLAGS_DESIGNATION=-O2|g' "$TARGET_MK"
+            sed -i 's|-Os|-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53|g' "$TARGET_MK"
+          fi
+          
+          # Force hard-lock overrides directly into global rules configurations
           sed -i 's/TARGET_CFLAGS:=.*/TARGET_CFLAGS:=-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
           sed -i 's/TARGET_CXXFLAGS:=.*/TARGET_CXXFLAGS:=-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53/g' rules.mk
           
-          # 3. Patch OpenSSL's specific package Makefile directly to append the hardware flags into its compiler stream
-          if [ -f package/libs/openssl/Makefile ]; then
-            sed -i '/TARGET_CFLAGS/s/$/ -march=armv8-a+crc+crypto -mtune=cortex-a53/' package/libs/openssl/Makefile
-          fi
-          
-          # 4. Patch Unbound's specific feed Makefile directly to inject the acceleration variables into its configuration options
-          if [ -f feeds/packages/net/unbound/Makefile ]; then
-            sed -i '/TARGET_CFLAGS/s/$/ -march=armv8-a+crc+crypto -mtune=cortex-a53/' feeds/packages/net/unbound/Makefile
-          fi
+          # Absolute foundation level injection append tracking block
+          echo 'TARGET_CFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> rules.mk
+          echo 'TARGET_CXXFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> rules.mk
+          echo 'EXTRA_CFLAGS += -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' >> rules.mk
 
-      - name: Fully Automated Target Pre-Configuration
+      - name: Configure M30 Target Architecture & Build System Matrix
         run: |
           cd openwrt
-          
-          # Seed target hardware device profile info for D-Link Aquila Pro AI M30 A1
           echo "CONFIG_TARGET_mediatek=y" > .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_dlink_aquila-pro-ai-m30-a1=y" >> .config
           echo 'CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53"' >> .config
           
-          # Hard-code modular compilation status tags for your application stack
+          # Seed the absolute complete 11-file package selection matrix explicitly into configuration
           echo "CONFIG_PACKAGE_kmod-cryptodev=m" >> .config
           echo "CONFIG_PACKAGE_libopenssl=m" >> .config
           echo "CONFIG_PACKAGE_libopenssl-conf=m" >> .config
@@ -97,14 +97,13 @@ jobs:
           echo "CONFIG_PACKAGE_unbound-anchor=m" >> .config
           echo "CONFIG_PACKAGE_unbound-host=m" >> .config
           
-          # Inject full sub-module configuration layer flags
+          # Inject full target package feature sub-module flag options
           echo "CONFIG_PACKAGE_libunbound_dnscrypt=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_ipset=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_libevent=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_libpthread=y" >> .config
           echo "CONFIG_PACKAGE_libunbound_subnet=y" >> .config
           
-          # Standardize config matrix entries cleanly
           make defconfig
 
       - name: Compile Cross-Compiler Toolchain Environment
@@ -117,18 +116,24 @@ jobs:
         run: |
           cd openwrt
           
-          # Compile the baseline kernel tree first to completely eliminate Error 2 module crashes
+          # Build baseline kernel tree to satisfy modular interfaces and stop Error 2 module drops
           make target/linux/compile -j$(nproc)
           make package/index
           
-          # Compile optimization core libraries and target apps sequentially
+          # Force target cross compilation parameter setup inside OpenSSL core instructions safely
+          OPENSSL_MAKEFILE="package/libs/openssl/Makefile"
+          if [ -f "$OPENSSL_MAKEFILE" ]; then
+            sed -i 's|OPENSSL_TARGET:=.*|OPENSSL_TARGET:=linux-aarch64|g' "$OPENSSL_MAKEFILE"
+          fi
+          
+          # Execute sequential package compilation streams tracking your exact configuration requirements
           make package/cryptodev-linux/compile -j$(nproc)
           make package/libs/openssl/compile -j$(nproc)
           make package/libs/libmnl/compile -j$(nproc)
           make package/libs/libevent2/compile -j$(nproc)
+          make package/feeds/packages/expat/compile -j$(nproc)
           make package/feeds/packages/libsodium/compile -j$(nproc)
           make package/feeds/packages/hiredis/compile -j$(nproc)
-          make package/feeds/packages/expat/compile -j$(nproc)
           make package/feeds/packages/unbound/compile -j$(nproc) IPKG_INSTANT_CHECK=0
 
       - name: Securely Upload Compiled APK Artifacts to GitHub Dashboard
